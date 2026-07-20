@@ -71,6 +71,8 @@ namespace SERVIDORES_SOCKETS
         // Controles y paneles clave
         private Button btnTheme = null!;
         private DoubleBufferedPanel pnlHero = null!;
+        private Panel pnlCenter = null!;
+        private TextureBrush? _dotTextureBrush;
 
         // Colores de tema dinámicos
         Color _bgTop, _bgBot, _cardNorm, _cardHov, _textPrim, _textMuted, _glowColor;
@@ -95,7 +97,24 @@ namespace SERVIDORES_SOCKETS
                 try { DwmSetWindowAttribute(Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref d, 4); } catch { }
             };
 
-            FormClosed += (_, _) => _animTimer.Stop();
+            FormClosed += (_, _) =>
+            {
+                _animTimer.Stop();
+                _dotTextureBrush?.Dispose();
+            };
+        }
+
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            if (pnlCenter != null)
+            {
+                pnlCenter.Location = new Point((ClientSize.Width - pnlCenter.Width) / 2, (ClientSize.Height - pnlCenter.Height) / 2);
+            }
+            if (btnTheme != null)
+            {
+                btnTheme.Location = new Point(ClientSize.Width - 145, 16);
+            }
         }
 
         private void InitColors()
@@ -122,6 +141,25 @@ namespace SERVIDORES_SOCKETS
             }
             BackColor = _bgTop;
             ForeColor = _textPrim;
+            CrearTexturaFondo();
+        }
+
+        private void CrearTexturaFondo()
+        {
+            _dotTextureBrush?.Dispose();
+            using (var bmp = new Bitmap(24, 24))
+            {
+                using (var gBmp = Graphics.FromImage(bmp))
+                {
+                    gBmp.Clear(Color.Transparent);
+                    Color dotColor = _isDarkMode ? Color.FromArgb(10, 255, 255, 255) : Color.FromArgb(14, 0, 0, 0);
+                    using (var b = new SolidBrush(dotColor))
+                    {
+                        gBmp.FillRectangle(b, 0, 0, 1.5f, 1.5f);
+                    }
+                }
+                _dotTextureBrush = new TextureBrush(bmp);
+            }
         }
 
         private void InitAnimation()
@@ -149,18 +187,10 @@ namespace SERVIDORES_SOCKETS
                 g.FillRectangle(lb, ClientRectangle);
             }
 
-            // 2. Patrón de puntos discretos (textura tecnológica sutil)
-            int dotSpacing = 24;
-            Color dotColor = _isDarkMode ? Color.FromArgb(10, 255, 255, 255) : Color.FromArgb(14, 0, 0, 0);
-            using (var dotBrush = new SolidBrush(dotColor))
+            // 2. Patrón de puntos discretos (acelerado por hardware con TextureBrush en 1 sola llamada)
+            if (_dotTextureBrush != null)
             {
-                for (int x = 8; x < ClientRectangle.Width; x += dotSpacing)
-                {
-                    for (int y = 8; y < ClientRectangle.Height; y += dotSpacing)
-                    {
-                        g.FillRectangle(dotBrush, x, y, 1.5f, 1.5f);
-                    }
-                }
+                g.FillRectangle(_dotTextureBrush, ClientRectangle);
             }
 
             // 3. Glow holográfico central
@@ -194,17 +224,8 @@ namespace SERVIDORES_SOCKETS
             Controls.Add(btnTheme);
             btnTheme.BringToFront();
 
-            // Reposicionar el botón en Resize
-            this.Resize += (_, _) =>
-            {
-                if (btnTheme != null)
-                {
-                    btnTheme.Location = new Point(ClientSize.Width - 145, 16);
-                }
-            };
-
             // Contenedor Central de tamaño fijo para evitar estiramientos al maximizar
-            var pnlCenter = new Panel
+            pnlCenter = new Panel
             {
                 Size = new Size(820, 540),
                 BackColor = Color.Transparent,
@@ -212,12 +233,6 @@ namespace SERVIDORES_SOCKETS
             };
             pnlCenter.Location = new Point((ClientSize.Width - pnlCenter.Width) / 2, (ClientSize.Height - pnlCenter.Height) / 2);
             Controls.Add(pnlCenter);
-
-            // Mantener centrado ante resize del Formulario
-            this.Resize += (_, _) =>
-            {
-                pnlCenter.Location = new Point((ClientSize.Width - pnlCenter.Width) / 2, (ClientSize.Height - pnlCenter.Height) / 2);
-            };
 
             // Layout dentro del contenedor central
             var root = new TableLayoutPanel
