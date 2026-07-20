@@ -42,6 +42,24 @@ namespace SERVIDORES_SOCKETS
         private static extern int WinMsg(IntPtr h, int msg, int w, int l);
         private const int WM_SETREDRAW = 0x000B;
 
+        // Doble búfer de hardware atómico para eliminar destellos blancos
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                var cp = base.CreateParams;
+                cp.ExStyle |= 0x02000000; // WS_EX_COMPOSITED
+                return cp;
+            }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == 0x0014) // WM_ERASEBKGND
+                return; // Prevenir borrado en blanco por defecto de Windows
+            base.WndProc(ref m);
+        }
+
         // Estado del tema y animación
         private bool _isDarkMode = true;
         private System.Windows.Forms.Timer _animTimer = null!;
