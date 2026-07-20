@@ -404,7 +404,13 @@ namespace SERVIDORES_SOCKETS
                     g.DrawPath(pen, path);
                 }
 
-                // 2. Franja superior de acento en hover
+                // 2. Franja de acento vertical en el borde izquierdo interno (Ajuste 4)
+                using (var brAccent = new SolidBrush(accent))
+                {
+                    g.FillRectangle(brAccent, 2, 16, 4, card.Height - 32);
+                }
+
+                // 3. Franja superior de acento en hover
                 if (hov)
                 {
                     var bar = new Rectangle(2, 2, card.Width - 4, 6);
@@ -414,7 +420,23 @@ namespace SERVIDORES_SOCKETS
                     }
                 }
 
-                // 3. Dibujar características (check ✓) con feedback en hover
+                // 4. Badge numerado "01" / "02" en la esquina superior derecha (Ajuste 2)
+                string numText = esServidor ? "01" : "02";
+                int badgeW = 34;
+                int badgeH = 22;
+                var badgeR = new Rectangle(card.Width - badgeW - 16, 16, badgeW, badgeH);
+                using (var badgePath = MkRound(badgeR, 10))
+                {
+                    Color badgeBg = _isDarkMode ? Color.FromArgb(40, accent) : Color.FromArgb(60, accent);
+                    using (var br = new SolidBrush(badgeBg))
+                        g.FillPath(br, badgePath);
+
+                    using (var fBadge = new Font("Segoe UI Black", 8.5F, FontStyle.Bold))
+                    using (var sfB = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                        g.DrawString(numText, fBadge, Brushes.White, badgeR, sfB);
+                }
+
+                // 5. Dibujar características (check ✓) con feedback en hover
                 int yChar = 178;
                 string[] chars = esServidor 
                     ? new[] { "✓  Multihilo asíncrono", "✓  Hasta 50 conexiones", "✓  Logs de eventos activos" }
@@ -432,18 +454,19 @@ namespace SERVIDORES_SOCKETS
                     }
                 }
 
-                // 4. Botón simulado en la parte inferior
-                int btnW = 140;
+                // 6. Botón simulado con flecha animada en hover (Ajuste 3)
+                int btnW = 150;
                 int btnH = 32;
                 var btnR = new Rectangle(28, card.Height - btnH - 20, btnW, btnH);
                 using (var path = MkRound(btnR, 8))
                 {
+                    string textBtn = hov ? "Iniciar módulo   →" : "Iniciar módulo  →";
                     if (hov)
                     {
                         using (var br = new SolidBrush(accent)) g.FillPath(br, path);
                         using (var f = new Font("Segoe UI Semibold", 9F, FontStyle.Bold))
                         using (var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-                            g.DrawString("Iniciar modulo", f, Brushes.White, btnR, sf);
+                            g.DrawString(textBtn, f, Brushes.White, btnR, sf);
                     }
                     else
                     {
@@ -452,12 +475,12 @@ namespace SERVIDORES_SOCKETS
                         Color btnTxt = _isDarkMode ? Color.FromArgb(170, 185, 230) : Color.FromArgb(70, 85, 130);
                         using (var f = new Font("Segoe UI Semibold", 9F, FontStyle.Bold))
                         using (var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-                            g.DrawString("Iniciar modulo", f, new SolidBrush(btnTxt), btnR, sf);
+                            g.DrawString(textBtn, f, new SolidBrush(btnTxt), btnR, sf);
                     }
                 }
             };
 
-            // Icono vectorial premium con doble búfer
+            // Icono vectorial premium tipo "squircle" con doble búfer (Ajuste 1)
             var ico = new DoubleBufferedPanel { Size = new Size(62, 62), Location = new Point(28, 22), BackColor = Color.Transparent };
             ico.Paint += (_, e) =>
             {
@@ -465,12 +488,16 @@ namespace SERVIDORES_SOCKETS
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
+                Rectangle sqRect = new Rectangle(1, 1, ico.Width - 2, ico.Height - 2);
                 Color circleBg = _isDarkMode ? Color.FromArgb(24, 30, 72) : Color.FromArgb(228, 235, 255);
-                using (var lb = new LinearGradientBrush(ico.ClientRectangle, circleBg, ControlPaint.LightLight(circleBg), 135f))
-                    g.FillEllipse(lb, new Rectangle(0, 0, 61, 61));
+                using (var pathSq = MkRound(sqRect, 14))
+                {
+                    using (var lb = new LinearGradientBrush(sqRect, circleBg, ControlPaint.LightLight(circleBg), 135f))
+                        g.FillPath(lb, pathSq);
 
-                using (var pen = new Pen(Color.FromArgb(60, accent), 1f))
-                    g.DrawEllipse(pen, new Rectangle(0, 0, 61, 61));
+                    using (var pen = new Pen(Color.FromArgb(80, accent), 1.2f))
+                        g.DrawPath(pen, pathSq);
+                }
 
                 using (var pen = new Pen(accent, 2f))
                 {
