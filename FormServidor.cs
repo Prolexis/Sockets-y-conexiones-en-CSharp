@@ -36,6 +36,10 @@ namespace SERVIDORES_SOCKETS
         private readonly ServidorTcp _server = new();
         private bool _dark = true;
 
+        // Historial de sesiones para mostrar desconectados en la tabla
+        private readonly List<ManejadorCliente> _clientesHistoricos = new();
+        private readonly System.Collections.Generic.HashSet<string> _clientesDesconectados = new(StringComparer.OrdinalIgnoreCase);
+
         // Variables de animación LED de estado
         private System.Windows.Forms.Timer _ledTimer = null!;
         private float _ledAlpha = 1f;
@@ -86,7 +90,7 @@ namespace SERVIDORES_SOCKETS
         {
             Text          = "SocketChat Pro — Servidor";
             Size          = new Size(1120, 720);
-            MinimumSize   = new Size(860, 580);
+            MinimumSize   = new Size(940, 580);
             StartPosition = FormStartPosition.CenterScreen;
             Font          = new Font("Segoe UI", 10F);
             BackColor     = _bg;
@@ -148,7 +152,7 @@ namespace SERVIDORES_SOCKETS
             // Botones derechos: FlowLayoutPanel(Dock=Right) — sin coordenadas manuales
             // TECNICA: Dock=Right hace que el panel siempre esté pegado a la derecha
             // sin necesidad de Resize event ni coordenadas fijas.
-            btnTheme = MkBtn("Modo Claro", Color.FromArgb(45, 60, 100), _txt, new Size(110, 34));
+            btnTheme = MkBtn("Modo Claro", Color.FromArgb(45, 60, 100), _txt, new Size(125, 34));
             btnTheme.Name = "btnTheme";
             btnTheme.Click += (_, _) => ToggleTema();
 
@@ -159,7 +163,7 @@ namespace SERVIDORES_SOCKETS
             {
                 Dock = DockStyle.Right, AutoSize = true,
                 FlowDirection = FlowDirection.LeftToRight, WrapContents = false,
-                BackColor = Color.Transparent, Padding = new Padding(0, 15, 8, 0)
+                BackColor = Color.Transparent, Padding = new Padding(0, 15, 14, 0)
             };
             flow.Controls.Add(btnTheme);
             flow.Controls.Add(new Panel { Width = 8, Height = 1, BackColor = Color.Transparent });
@@ -260,15 +264,16 @@ namespace SERVIDORES_SOCKETS
                 Font = new Font("Segoe UI", 10F),
                 BackColor = _inp, ForeColor = _txt
             };
-            lstClients.Columns.Add("Usuario",  150);
-            lstClients.Columns.Add("IP",       120);
-            lstClients.Columns.Add("Puerto",    65);
-            lstClients.Columns.Add("Hora",      -2);
+            lstClients.Columns.Add("Usuario",  140);
+            lstClients.Columns.Add("IP",       110);
+            lstClients.Columns.Add("Puerto",    60);
+            lstClients.Columns.Add("Hora",      90);
+            lstClients.Columns.Add("Estado",    -2);
             lstClients.DrawColumnHeader += (_, e) => e.DrawDefault = true;
             lstClients.DrawItem         += (_, e) => e.DrawBackground();
             lstClients.DrawSubItem      += DrawSubItem;
             lstClients.Resize           += (_, _) =>
-            { if (lstClients.Columns.Count > 3) lstClients.Columns[3].Width = -2; };
+            { if (lstClients.Columns.Count > 4) lstClients.Columns[4].Width = -2; };
 
             var wCli = new Panel { Dock = DockStyle.Fill, BackColor = _card, Padding = new Padding(6, 26, 6, 6) };
             wCli.Controls.Add(lstClients);
@@ -318,8 +323,8 @@ namespace SERVIDORES_SOCKETS
         void AttachServerEvents()
         {
             _server.OnLog                += (msg, lvl) => AddLog(msg, lvl);
-            _server.OnClientConnected    += _ => SafeUI(RefrescarLista);
-            _server.OnClientDisconnected += _ => SafeUI(RefrescarLista);
+            _server.OnClientConnected    += c => SafeUI(() => AlConectar(c));
+            _server.OnClientDisconnected += c => SafeUI(() => AlDesconectar(c));
             _server.OnStateChanged       += ok => SafeUI(() => UpdateUI(ok));
         }
 
@@ -342,19 +347,54 @@ namespace SERVIDORES_SOCKETS
             txtPort.ReadOnly =  on;
             lblStatus.Text      = on ? "  ACTIVO"    : "  DETENIDO";
             lblStatus.ForeColor = on ? Ok             : Err;
-            if (!on) lstClients.Items.Clear();
+            if (!on)
+            {
+                lock (_clientesHistoricos)
+                {
+                    _clientesHistoricos.Clear();
+                    _clientesDesconectados.Clear();
+                }
+                lstClients.Items.Clear();
+            }
+        }
+
+        void AlConectar(ManejadorCliente c)
+        {
+            lock (_clientesHistoricos)
+            {
+                _clientesHistoricos.RemoveAll(x => x.Usuario.Equals(c.Usuario, StringComparison.OrdinalIgnoreCase));
+                _clientesHistoricos.Add(c);
+                _clientesDesconectados.Remove(c.Usuario);
+            }
+            RefrescarLista();
+        }
+
+        void AlDesconectar(ManejadorCliente c)
+        {
+            lock (_clientesHistoricos)
+            {
+                _clientesDesconectados.Add(c.Usuario);
+            }
+            RefrescarLista();
         }
 
         void RefrescarLista()
         {
             lstClients.BeginUpdate();
             lstClients.Items.Clear();
-            foreach (var c in _server.GetClientes())
+            System.Collections.Generic.List<ManejadorCliente> copia;
+            lock (_clientesHistoricos)
             {
+                copia = new System.Collections.Generic.List<ManejadorCliente>(_clientesHistoricos);
+            }
+            foreach (var c in copia)
+            {
+                bool activo = !_clientesDesconectados.Contains(c.Usuario);
                 var it = new ListViewItem(c.Usuario);
                 it.SubItems.Add(c.IP);
                 it.SubItems.Add(c.Puerto.ToString());
                 it.SubItems.Add(c.HoraConexion.ToString("HH:mm:ss"));
+                it.SubItems.Add(activo ? "Activo" : "Desconectado");
                 lstClients.Items.Add(it);
             }
             lstClients.EndUpdate();
@@ -413,15 +453,36 @@ namespace SERVIDORES_SOCKETS
                 using var fA  = new Font("Segoe UI Semibold", 8.5F, FontStyle.Bold);
                 using var sfA = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 g.DrawString(u.Length > 0 ? char.ToUpper(u[0]).ToString() : "?", fA, Brushes.White, cr, sfA);
-                // Punto verde: online
+                
+                // Determinar si está activo para pintar el punto
+                bool activo = e.Item.SubItems.Count > 4 && e.Item.SubItems[4].Text.Equals("Activo", StringComparison.OrdinalIgnoreCase);
                 var dot = new Rectangle(cr.Right - 8, cr.Bottom - 8, 9, 9);
-                g.FillEllipse(new SolidBrush(Ok), dot);
+                g.FillEllipse(new SolidBrush(activo ? Ok : Err), dot);
                 g.DrawEllipse(new Pen(bg, 1.5f), dot);
 
                 var tr = new Rectangle(cr.Right + 4, e.Bounds.Y, e.Bounds.Width - cr.Width - 10, e.Bounds.Height);
                 Color fg = sel ? Color.White : (_dark ? Color.FromArgb(248,250,252) : Color.FromArgb(15,23,42));
                 TextRenderer.DrawText(g, u, new Font("Segoe UI Semibold", 9F, FontStyle.Bold), tr, fg,
                     TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+            }
+            else if (e.ColumnIndex == 4) // Columna de Estado (Chip visual)
+            {
+                string estado = e.SubItem?.Text ?? "Desconectado";
+                bool activo   = estado.Equals("Activo", StringComparison.OrdinalIgnoreCase);
+
+                Color chipBg = activo ? Color.FromArgb(32, Ok) : Color.FromArgb(32, Err);
+                Color chipFg = activo ? Ok : Err;
+
+                var rect = new Rectangle(e.Bounds.X + 6, e.Bounds.Y + 4, e.Bounds.Width - 12, e.Bounds.Height - 8);
+                using (var path = MkRound(rect, 4))
+                {
+                    g.FillPath(new SolidBrush(chipBg), path);
+                    g.DrawPath(new Pen(chipFg, 1f), path);
+                }
+
+                using var f = new Font("Segoe UI Semibold", 8F, FontStyle.Bold);
+                using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                g.DrawString(estado, f, new SolidBrush(chipFg), rect, sf);
             }
             else
             {

@@ -39,6 +39,9 @@ namespace SERVIDORES_SOCKETS
         private bool _dark = true;
         private int  _nextY = 8;
 
+        // Historial y estado de contactos (activo = true, desconectado = false)
+        private readonly System.Collections.Generic.Dictionary<string, bool> _contactosEstado = new(StringComparer.OrdinalIgnoreCase);
+
         // Controles
         private TextBox  txtIp    = null!;
         private TextBox  txtPort  = null!;
@@ -88,7 +91,7 @@ namespace SERVIDORES_SOCKETS
         {
             Text          = "SocketChat Pro — Cliente";
             Size          = new Size(1120, 740);
-            MinimumSize   = new Size(860, 580);
+            MinimumSize   = new Size(940, 580);
             StartPosition = FormStartPosition.CenterScreen;
             Font          = new Font("Segoe UI", 10F);
             BackColor     = _bg;
@@ -149,7 +152,7 @@ namespace SERVIDORES_SOCKETS
             };
 
             // Botones a la derecha con FlowLayoutPanel(Dock=Right)
-            btnTheme = MkBtn("Modo Claro", Color.FromArgb(40, 55, 100), _txt, new Size(110, 34));
+            btnTheme = MkBtn("Modo Claro", Color.FromArgb(40, 55, 100), _txt, new Size(125, 34));
             btnTheme.Name   = "btnTheme";
             btnTheme.Click += (_, _) => ToggleTema();
 
@@ -160,7 +163,7 @@ namespace SERVIDORES_SOCKETS
             {
                 Dock = DockStyle.Right, AutoSize = true,
                 FlowDirection = FlowDirection.LeftToRight, WrapContents = false,
-                BackColor = Color.Transparent, Padding = new Padding(0, 15, 8, 0)
+                BackColor = Color.Transparent, Padding = new Padding(0, 15, 14, 0)
             };
             flow.Controls.Add(btnTheme);
             flow.Controls.Add(new Panel { Width = 8, Height = 1, BackColor = Color.Transparent });
@@ -193,7 +196,7 @@ namespace SERVIDORES_SOCKETS
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 85));  // Puerto
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35));  // Nombre de Usuario
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 102)); // Conectar
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 108)); // Desconectar
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120)); // Desconectar
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));  // Ping
             
             tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));   // labels
@@ -357,7 +360,13 @@ namespace SERVIDORES_SOCKETS
         {
             _client.OnLog += (msg, lvl) => SafeUI(() => Burbuja("Sistema", $"[{lvl.ToString().ToUpper()}] {msg}"));
             _client.OnConnectionStatusChanged += ok => SafeUI(() => UpdateUI(ok));
-            _client.OnChatMessageReceived     += (from, msg) => SafeUI(() => Burbuja(from, msg));
+            _client.OnChatMessageReceived     += (from, msg) => SafeUI(() =>
+            {
+                if (!from.Equals(_client.UsuarioActual, StringComparison.OrdinalIgnoreCase))
+                {
+                    Burbuja(from, msg);
+                }
+            });
             _client.OnUserListUpdated         += users => SafeUI(() => ActualizarContactos(users));
             _client.OnFileIncomingStarted     += (from, _, name, size) =>
                 SafeUI(() => Burbuja(from, $"[ARCHIVO ENTRANTE] \"{name}\" ({size / 1024} KB)..."));
@@ -424,17 +433,52 @@ namespace SERVIDORES_SOCKETS
             txtIp.ReadOnly = txtPort.ReadOnly = txtUser.ReadOnly = on;
             lblStat.Text      = on ? "  Conectado"    : "  Desconectado";
             lblStat.ForeColor = on ? Ok                : Err;
+            if (!on)
+            {
+                _contactosEstado.Clear();
+                cmbDest.Items.Clear();
+                cmbDest.Items.Add("(Todos)");
+                cmbDest.SelectedIndex = 0;
+                lstConts.Items.Clear();
+                lstConts.Items.Add("> Todos");
+            }
         }
 
         void ActualizarContactos(List<string> users)
         {
+            // 1. Marcar a todos los que estaban conectados anteriormente como desconectados (false)
+            var llaves = new System.Collections.Generic.List<string>(_contactosEstado.Keys);
+            foreach (var k in llaves) _contactosEstado[k] = false;
+
+            // 2. Marcar a los nuevos activos como conectados (true)
+            foreach (var u in users)
+            {
+                if (!u.Equals(_client.UsuarioActual, StringComparison.OrdinalIgnoreCase))
+                {
+                    _contactosEstado[u] = true;
+                }
+            }
+
+            // 3. Actualizar el combo de destinatarios (solo los conectados activos)
             string prev = cmbDest.SelectedItem as string ?? "(Todos)";
             cmbDest.Items.Clear(); cmbDest.Items.Add("(Todos)");
-            lstConts.Items.Clear(); lstConts.Items.Add("> Todos");
-            foreach (var u in users.Where(u => !u.Equals(_client.UsuarioActual, StringComparison.OrdinalIgnoreCase)))
-            { cmbDest.Items.Add(u); lstConts.Items.Add(u); }
+            foreach (var kvp in _contactosEstado)
+            {
+                if (kvp.Value) cmbDest.Items.Add(kvp.Key);
+            }
             int idx = cmbDest.Items.IndexOf(prev);
             cmbDest.SelectedIndex = idx >= 0 ? idx : 0;
+
+            // 4. Actualizar la lista de contactos (mostrando todos, conectados arriba y desconectados abajo)
+            lstConts.Items.Clear();
+            lstConts.Items.Add("> Todos");
+            
+            // Ordenar: primero conectados activos alfabéticamente, luego desconectados
+            var activos = _contactosEstado.Where(x => x.Value).Select(x => x.Key).OrderBy(x => x).ToList();
+            var inactivos = _contactosEstado.Where(x => !x.Value).Select(x => x.Key).OrderBy(x => x).ToList();
+
+            foreach (var u in activos)   lstConts.Items.Add(u);
+            foreach (var u in inactivos) lstConts.Items.Add(u);
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -552,21 +596,29 @@ namespace SERVIDORES_SOCKETS
             bool todos = item.StartsWith(">");
             if (!todos)
             {
+                // Determinar estado de conexión
+                bool activo = _contactosEstado.TryGetValue(item, out bool st) && st;
+
                 var cr = new Rectangle(e.Bounds.X + 6, e.Bounds.Y + 4, 28, 28);
-                g.FillEllipse(new SolidBrush(AvatarColor(item)), cr);
+                Color avatarColor = activo ? AvatarColor(item) : Color.FromArgb(120, 130, 140);
+                g.FillEllipse(new SolidBrush(avatarColor), cr);
+                
                 using var fA = new Font("Segoe UI Semibold", 9F, FontStyle.Bold);
                 using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 g.DrawString(item.Length > 0 ? char.ToUpper(item[0]).ToString() : "?", fA, Brushes.White, cr, sf);
+                
                 var dot = new Rectangle(cr.Right - 9, cr.Bottom - 9, 9, 9);
-                g.FillEllipse(new SolidBrush(Ok), dot);
+                g.FillEllipse(new SolidBrush(activo ? Ok : Err), dot);
                 g.DrawEllipse(new Pen(bg, 1.5f), dot);
+                
                 var tr = new Rectangle(cr.Right + 4, e.Bounds.Y, e.Bounds.Width - cr.Right, e.Bounds.Height);
-                TextRenderer.DrawText(g, item, new Font("Segoe UI", 9F), tr,
-                    sel ? Color.White : _txt, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+                Color txtColor = sel ? Color.White : (activo ? _txt : _mut);
+                TextRenderer.DrawText(g, item, new Font("Segoe UI", 10F), tr,
+                    txtColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
             }
             else
             {
-                TextRenderer.DrawText(g, item.TrimStart('>').Trim(), new Font("Segoe UI", 9F),
+                TextRenderer.DrawText(g, item.TrimStart('>').Trim(), new Font("Segoe UI", 10F),
                     new Rectangle(e.Bounds.X + 8, e.Bounds.Y, e.Bounds.Width, e.Bounds.Height),
                     sel ? Color.White : _mut, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
             }
