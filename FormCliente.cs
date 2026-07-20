@@ -782,11 +782,17 @@ namespace SERVIDORES_SOCKETS
 
         static GraphicsPath MkRound(Rectangle r, int rad)
         {
-            int d = Math.Max(2, rad * 2); var p = new GraphicsPath();
-            p.AddArc(r.X,         r.Y,          d, d, 180, 90);
-            p.AddArc(r.Right - d, r.Y,          d, d, 270, 90);
-            p.AddArc(r.Right - d, r.Bottom - d, d, d,   0, 90);
-            p.AddArc(r.X,         r.Bottom - d, d, d,  90, 90);
+            var p = new GraphicsPath();
+            int diameter = Math.Max(2, rad * 2);
+            if (r.Width <= diameter || r.Height <= diameter)
+            {
+                p.AddRectangle(r);
+                return p;
+            }
+            p.AddArc(r.X,         r.Y,          diameter, diameter, 180, 90);
+            p.AddArc(r.Right - diameter, r.Y,          diameter, diameter, 270, 90);
+            p.AddArc(r.Right - diameter, r.Bottom - diameter, diameter, diameter,   0, 90);
+            p.AddArc(r.X,         r.Bottom - diameter, diameter, diameter,  90, 90);
             p.CloseFigure(); return p;
         }
 
