@@ -73,6 +73,7 @@ namespace SERVIDORES_SOCKETS
         private DoubleBufferedPanel pnlHero = null!;
         private Panel pnlCenter = null!;
         private TextureBrush? _dotTextureBrush;
+        private ToolTip _toolTip = null!;
 
         // Colores de tema dinámicos
         Color _bgTop, _bgBot, _cardNorm, _cardHov, _textPrim, _textMuted, _glowColor;
@@ -87,6 +88,7 @@ namespace SERVIDORES_SOCKETS
             Font          = new Font("Segoe UI", 9.75F);
 
             InitColors();
+            InitToolTip();
             BuildUI();
             CachearControles(this);
             InitAnimation();
@@ -211,6 +213,17 @@ namespace SERVIDORES_SOCKETS
             }
         }
 
+        private void InitToolTip()
+        {
+            _toolTip = new ToolTip
+            {
+                AutoPopDelay = 5000,
+                InitialDelay = 500,
+                ReshowDelay = 100,
+                ShowAlways = true
+            };
+        }
+
         private void BuildUI()
         {
             // Botón de tema flotante (esquina superior derecha) - reubicado para margen amplio
@@ -223,6 +236,8 @@ namespace SERVIDORES_SOCKETS
             btnTheme.Click += (_, _) => ToggleTema();
             Controls.Add(btnTheme);
             btnTheme.BringToFront();
+
+            _toolTip.SetToolTip(btnTheme, "Alternar tema claro / oscuro");
 
             // Contenedor Central de tamaño fijo para evitar estiramientos al maximizar
             pnlCenter = new Panel
@@ -517,8 +532,9 @@ namespace SERVIDORES_SOCKETS
 
             var lblTit = new Label
             {
-                Text = titulo, Font = new Font("Segoe UI", 19F, FontStyle.Bold),
-                ForeColor = _textPrim, AutoSize = true, Location = new Point(28, 94),
+                Text = titulo, Font = new Font("Segoe UI", 18F, FontStyle.Bold),
+                ForeColor = _textPrim, AutoSize = false,
+                Size = new Size(330, 34), Location = new Point(28, 94),
                 BackColor = Color.Transparent, Name = "lblTit"
             };
 
@@ -526,9 +542,12 @@ namespace SERVIDORES_SOCKETS
             {
                 Text = desc, Font = new Font("Segoe UI", 9F),
                 ForeColor = _textMuted, AutoSize = false,
-                Size = new Size(330, 42), Location = new Point(28, 132),
+                Size = new Size(330, 40), Location = new Point(28, 138),
                 BackColor = Color.Transparent, Name = "lblDesc"
             };
+
+            _toolTip.SetToolTip(card, "Haz clic para iniciar el módulo de " + titulo);
+            _toolTip.SetToolTip(lblTit, "Haz clic para iniciar el módulo de " + titulo);
 
             card.Controls.AddRange(new Control[] { ico, lblTit, lblDesc });
 
