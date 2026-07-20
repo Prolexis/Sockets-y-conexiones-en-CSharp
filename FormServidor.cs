@@ -36,6 +36,11 @@ namespace SERVIDORES_SOCKETS
         private readonly ServidorTcp _server = new();
         private bool _dark = true;
 
+        // Variables de animación LED de estado
+        private System.Windows.Forms.Timer _ledTimer = null!;
+        private float _ledAlpha = 1f;
+        private bool _ledAlphaDown = true;
+
         // Controles clave
         private TextBox     txtPort    = null!;
         private Button      btnStart   = null!;
@@ -60,8 +65,9 @@ namespace SERVIDORES_SOCKETS
             InitTemaColors();  // colores oscuros desde el inicio
             BuildUI();
             AttachServerEvents();
+            InitLedTimer();
             Load        += OnLoad;
-            FormClosing += (_, _) => _server.Stop();
+            FormClosing += (_, _) => { _ledTimer.Stop(); _server.Stop(); };
         }
 
         void InitTemaColors()
@@ -187,7 +193,7 @@ namespace SERVIDORES_SOCKETS
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112)); // Iniciar
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112)); // Detener
             tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));   // labels
-            tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // inputs
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));   // inputs y botones fijados a 30px
 
             // Fila 0: etiquetas
             tlp.Controls.Add(MkLbl("IP de escucha (todas las interfaces):"), 0, 0);
@@ -208,11 +214,11 @@ namespace SERVIDORES_SOCKETS
             txtPort.Enter += TxtEnter; txtPort.Leave += TxtLeave;
 
             btnStart = MkBtn("Iniciar", Ac, Color.White, new Size(1, 1));
-            btnStart.Dock = DockStyle.Fill; btnStart.Name = "btnStart"; btnStart.Margin = new Padding(4, 0, 0, 0);
+            btnStart.Dock = DockStyle.Fill; btnStart.Name = "btnStart"; btnStart.Margin = new Padding(4, 2, 0, 2);
             btnStart.Click += (_, _) => IniciarServidor();
 
             btnStop = MkBtn("Detener", Err, Color.White, new Size(1, 1));
-            btnStop.Dock = DockStyle.Fill; btnStop.Name = "btnStop"; btnStop.Enabled = false; btnStop.Margin = new Padding(4, 0, 0, 0);
+            btnStop.Dock = DockStyle.Fill; btnStop.Name = "btnStop"; btnStop.Enabled = false; btnStop.Margin = new Padding(4, 2, 0, 2);
             btnStop.Click += (_, _) => _server.Stop();
 
             tlp.Controls.Add(lblIPs,   0, 1);
@@ -566,6 +572,34 @@ namespace SERVIDORES_SOCKETS
         // ── Microinteraccion foco TextBox ──────────────────────────────────────
         void TxtEnter(object? s, EventArgs e) { if (s is TextBox t) t.BackColor = _dark ? Color.FromArgb(28, 42, 90) : Color.FromArgb(220, 228, 255); }
         void TxtLeave(object? s, EventArgs e) { if (s is TextBox t) t.BackColor = _inp; }
+
+        // ── Animación LED de Estado ───────────────────────────────────────────
+        void InitLedTimer()
+        {
+            _ledTimer = new System.Windows.Forms.Timer { Interval = 40 }; // Alta frecuencia para suavidad
+            _ledTimer.Tick += (s, e) =>
+            {
+                if (_server.IsRunning)
+                {
+                    if (_ledAlphaDown)
+                    {
+                        _ledAlpha -= 0.04f;
+                        if (_ledAlpha <= 0.35f) _ledAlphaDown = false;
+                    }
+                    else
+                    {
+                        _ledAlpha += 0.04f;
+                        if (_ledAlpha >= 1.0f) _ledAlphaDown = true;
+                    }
+                    lblStatus.ForeColor = Color.FromArgb((int)(_ledAlpha * 255), Ok.R, Ok.G, Ok.B);
+                }
+                else
+                {
+                    lblStatus.ForeColor = Err; // Rojo sólido cuando está detenido
+                }
+            };
+            _ledTimer.Start();
+        }
 
         // ══════════════════════════════════════════════════════════════════════
         //  HELPERS
