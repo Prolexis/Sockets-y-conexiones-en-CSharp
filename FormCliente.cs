@@ -182,19 +182,22 @@ namespace SERVIDORES_SOCKETS
             };
             gb.Paint += GbPaint;
 
-            // 2 filas: labels | inputs+botones
+            // 2 filas: labels (20px) | inputs+botones (30px)
             var tlp = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 2,
+                Dock = DockStyle.Fill, ColumnCount = 6, RowCount = 2,
                 BackColor = Color.Transparent,
                 Padding = new Padding(12, 26, 12, 8), Margin = Padding.Empty
             };
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38)); // IP
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 95)); // Puerto
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30)); // Usuario
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 338)); // Botones
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
-            tlp.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));  // IP del Servidor
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 85));  // Puerto
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35));  // Nombre de Usuario
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 102)); // Conectar
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 108)); // Desconectar
+            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));  // Ping
+            
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));   // labels
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));   // inputs y botones fijados a 30px
 
             // Fila 0: etiquetas
             tlp.Controls.Add(MkLbl("IP del Servidor:"),    0, 0);
@@ -206,37 +209,24 @@ namespace SERVIDORES_SOCKETS
             txtPort = MkField("8080");
             txtUser = MkField("Cliente1");
 
-            // Botones de conexion en FlowLayoutPanel horizontal
-            var pnlBtns = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false,
-                BackColor = Color.Transparent,
-                Padding = new Padding(8, 0, 0, 0),
-                Margin = Padding.Empty
-            };
-
-            btnConn = MkBtn("Conectar",    Ac,  Color.White, new Size(100, 26));
-            btnConn.Name = "btnConn"; btnConn.Margin = new Padding(0, 0, 4, 0);
+            btnConn = MkBtn("Conectar",    Ac,  Color.White, new Size(1, 1));
+            btnConn.Dock = DockStyle.Fill; btnConn.Name = "btnConn"; btnConn.Margin = new Padding(4, 2, 0, 2);
             btnConn.Click += async (_, _) => await Conectar();
 
-            btnDisc = MkBtn("Desconectar", Err, Color.White, new Size(100, 26));
-            btnDisc.Name = "btnDisc"; btnDisc.Enabled = false; btnDisc.Margin = new Padding(0, 0, 4, 0);
+            btnDisc = MkBtn("Desconectar", Err, Color.White, new Size(1, 1));
+            btnDisc.Dock = DockStyle.Fill; btnDisc.Name = "btnDisc"; btnDisc.Enabled = false; btnDisc.Margin = new Padding(4, 2, 0, 2);
             btnDisc.Click += (_, _) => _client.Disconnect();
 
-            btnPing = MkBtn("Ping", Color.FromArgb(50, 70, 110), Color.White, new Size(100, 26));
-            btnPing.Name = "btnPing"; btnPing.Enabled = false; btnPing.Margin = new Padding(0, 0, 0, 0);
+            btnPing = MkBtn("Ping", Color.FromArgb(50, 70, 110), Color.White, new Size(1, 1));
+            btnPing.Dock = DockStyle.Fill; btnPing.Name = "btnPing"; btnPing.Enabled = false; btnPing.Margin = new Padding(4, 2, 0, 2);
             btnPing.Click += async (_, _) => await _client.EnviarPingAsync();
-
-            pnlBtns.Controls.Add(btnConn);
-            pnlBtns.Controls.Add(btnDisc);
-            pnlBtns.Controls.Add(btnPing);
 
             tlp.Controls.Add(txtIp,    0, 1);
             tlp.Controls.Add(txtPort,  1, 1);
             tlp.Controls.Add(txtUser,  2, 1);
-            tlp.Controls.Add(pnlBtns,  3, 1);
+            tlp.Controls.Add(btnConn,  3, 1);
+            tlp.Controls.Add(btnDisc,  4, 1);
+            tlp.Controls.Add(btnPing,  5, 1);
 
             gb.Controls.Add(tlp);
             return gb;
