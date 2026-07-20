@@ -54,8 +54,8 @@ namespace SERVIDORES_SOCKETS
         {
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
             Text          = "SocketChat Pro";
-            Size          = new Size(880, 600);
-            MinimumSize   = new Size(740, 510);
+            Size          = new Size(940, 660);
+            MinimumSize   = new Size(880, 620);
             StartPosition = FormStartPosition.CenterScreen;
             Font          = new Font("Segoe UI", 9.75F);
 
@@ -122,7 +122,21 @@ namespace SERVIDORES_SOCKETS
                 g.FillRectangle(lb, ClientRectangle);
             }
 
-            // 2. Glow holográfico central
+            // 2. Patrón de puntos discretos (textura tecnológica sutil)
+            int dotSpacing = 24;
+            Color dotColor = _isDarkMode ? Color.FromArgb(10, 255, 255, 255) : Color.FromArgb(14, 0, 0, 0);
+            using (var dotBrush = new SolidBrush(dotColor))
+            {
+                for (int x = 8; x < ClientRectangle.Width; x += dotSpacing)
+                {
+                    for (int y = 8; y < ClientRectangle.Height; y += dotSpacing)
+                    {
+                        g.FillRectangle(dotBrush, x, y, 1.5f, 1.5f);
+                    }
+                }
+            }
+
+            // 3. Glow holográfico central
             int cx = ClientRectangle.Width / 2;
             int cy = ClientRectangle.Height / 2 - 30;
             int rW = 600;
@@ -142,28 +156,53 @@ namespace SERVIDORES_SOCKETS
 
         private void BuildUI()
         {
-            // Botón de tema flotante (esquina superior derecha)
+            // Botón de tema flotante (esquina superior derecha) - reubicado para margen amplio
             btnTheme = MkBtn(_isDarkMode ? "Modo Claro" : "Modo Oscuro", 
                 _isDarkMode ? Color.FromArgb(40, 55, 100) : Color.FromArgb(200, 215, 245), 
-                _textPrim, new Size(110, 32));
+                _textPrim, new Size(125, 32));
             btnTheme.Name = "btnTheme";
             btnTheme.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnTheme.Location = new Point(ClientSize.Width - 130, 14);
+            btnTheme.Location = new Point(ClientSize.Width - 145, 16);
             btnTheme.Click += (_, _) => ToggleTema();
             Controls.Add(btnTheme);
             btnTheme.BringToFront();
 
-            // Layout
+            // Reposicionar el botón en Resize
+            this.Resize += (_, _) =>
+            {
+                if (btnTheme != null)
+                {
+                    btnTheme.Location = new Point(ClientSize.Width - 145, 16);
+                }
+            };
+
+            // Contenedor Central de tamaño fijo para evitar estiramientos al maximizar
+            var pnlCenter = new Panel
+            {
+                Size = new Size(820, 540),
+                BackColor = Color.Transparent,
+                Name = "pnlCenter"
+            };
+            pnlCenter.Location = new Point((ClientSize.Width - pnlCenter.Width) / 2, (ClientSize.Height - pnlCenter.Height) / 2);
+            Controls.Add(pnlCenter);
+
+            // Mantener centrado ante resize del Formulario
+            this.Resize += (_, _) =>
+            {
+                pnlCenter.Location = new Point((ClientSize.Width - pnlCenter.Width) / 2, (ClientSize.Height - pnlCenter.Height) / 2);
+            };
+
+            // Layout dentro del contenedor central
             var root = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1,
                 BackColor = Color.Transparent, Margin = Padding.Empty,
-                Padding = new Padding(40, 18, 40, 16)
+                Padding = new Padding(20, 10, 20, 10)
             };
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 38));  // Hero
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 55));  // Cards
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 32));  // Hero
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 61));  // Cards (tarjetas con alto de ~318px)
             root.RowStyles.Add(new RowStyle(SizeType.Percent,  7));  // Footer
-            Controls.Add(root);
+            pnlCenter.Controls.Add(root);
 
             // ── Hero ──────────────────────────────────────────────────────────
             pnlHero = new DoubleBufferedPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, Name = "pnlHero" };
@@ -176,7 +215,7 @@ namespace SERVIDORES_SOCKETS
             {
                 Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
                 BackColor = Color.Transparent, Margin = Padding.Empty,
-                Padding = new Padding(0, 6, 0, 6)
+                Padding = new Padding(0, 4, 0, 4)
             };
             tlpCards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             tlpCards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
@@ -184,12 +223,12 @@ namespace SERVIDORES_SOCKETS
 
             var cSrv = BuildCard("Servidor",
                 "Inicia el listener TCP en todas las interfaces de red.\nMonitorea y administra las conexiones en tiempo real.",
-                Color.FromArgb(99, 102, 241), true, () => AbrirForm(true));
+                Color.FromArgb(99, 102, 241), true, () => AbrirForm(true)); // Indigo para Servidor
             cSrv.Margin = new Padding(0, 0, 12, 0);
 
             var cCli = BuildCard("Cliente",
                 "Conectate a un servidor mediante direccion IP y puerto.\nComparte mensajes de chat y archivos binarios al instante.",
-                Color.FromArgb(168, 85, 247), false, () => AbrirForm(false));
+                Color.FromArgb(20, 184, 166), false, () => AbrirForm(false)); // Teal complementario para Cliente
             cCli.Margin = new Padding(12, 0, 0, 0);
 
             tlpCards.Controls.Add(cSrv, 0, 0);
@@ -315,10 +354,28 @@ namespace SERVIDORES_SOCKETS
                     }
                 }
 
-                // 3. Botón simulado
+                // 3. Dibujar características (check ✓) con feedback en hover
+                int yChar = 178;
+                string[] chars = esServidor 
+                    ? new[] { "✓  Multihilo asíncrono", "✓  Hasta 50 conexiones", "✓  Logs de eventos activos" }
+                    : new[] { "✓  Chat privado y grupal", "✓  Transferencia de archivos", "✓  Notificaciones LED de red" };
+                
+                using (var fChar = new Font("Segoe UI Semibold", 9F, FontStyle.Bold))
+                {
+                    for (int i = 0; i < chars.Length; i++)
+                    {
+                        Color charCol = hov ? Color.FromArgb(220, accent) : _textMuted;
+                        using (var br = new SolidBrush(charCol))
+                        {
+                            g.DrawString(chars[i], fChar, br, 28, yChar + (i * 20));
+                        }
+                    }
+                }
+
+                // 4. Botón simulado en la parte inferior
                 int btnW = 140;
                 int btnH = 32;
-                var btnR = new Rectangle(28, card.Height - btnH - 24, btnW, btnH);
+                var btnR = new Rectangle(28, card.Height - btnH - 20, btnW, btnH);
                 using (var path = MkRound(btnR, 8))
                 {
                     if (hov)
@@ -340,7 +397,7 @@ namespace SERVIDORES_SOCKETS
                 }
             };
 
-            // Icono vectorial con doble búfer
+            // Icono vectorial premium con doble búfer
             var ico = new DoubleBufferedPanel { Size = new Size(62, 62), Location = new Point(28, 22), BackColor = Color.Transparent };
             ico.Paint += (_, e) =>
             {
@@ -362,27 +419,51 @@ namespace SERVIDORES_SOCKETS
 
                     if (esServidor)
                     {
-                        g.DrawRectangle(pen, 17, 18, 28, 18);
-                        g.DrawLine(pen, 31, 36, 31, 41);
-                        g.DrawLine(pen, 24, 41, 38, 41);
-                        using (var penThin = new Pen(Color.FromArgb(100, accent), 1f))
-                            g.DrawLine(penThin, 19, 31, 43, 31);
+                        // Dibujar un rack de servidor de red detallado con bahías y LEDs activos
+                        g.DrawRectangle(pen, 16, 18, 30, 26);
+                        g.DrawRectangle(pen, 20, 22, 22, 6);
+                        g.DrawRectangle(pen, 20, 32, 22, 6);
+
+                        using (var greenBrush = new SolidBrush(Color.FromArgb(16, 185, 129)))
+                        using (var yellowBrush = new SolidBrush(Color.FromArgb(245, 158, 11)))
+                        {
+                            g.FillEllipse(greenBrush, 23, 24, 2.5f, 2.5f);
+                            g.FillEllipse(yellowBrush, 23, 34, 2.5f, 2.5f);
+                        }
+
+                        using (var penThin = new Pen(Color.FromArgb(120, accent), 1f))
+                        {
+                            g.DrawLine(penThin, 28, 25, 38, 25);
+                            g.DrawLine(penThin, 28, 35, 38, 35);
+                        }
                     }
                     else
                     {
-                        var chatPath = new GraphicsPath();
-                        chatPath.AddArc(16, 16, 26, 18, 270, 180);
-                        chatPath.AddLine(29, 34, 21, 40);
-                        chatPath.AddLine(21, 40, 24, 33);
-                        chatPath.AddArc(16, 16, 26, 18, 90, 180);
-                        chatPath.CloseFigure();
-                        g.DrawPath(pen, chatPath);
+                        // Dibujar dos burbujas de diálogo cruzadas (estilo chat moderno)
+                        var path1 = new GraphicsPath();
+                        path1.AddArc(15, 16, 24, 16, 270, 180);
+                        path1.AddLine(27, 32, 19, 37);
+                        path1.AddLine(19, 37, 22, 31);
+                        path1.AddArc(15, 16, 24, 16, 90, 180);
+                        path1.CloseFigure();
+                        g.DrawPath(pen, path1);
 
-                        using (var br = new SolidBrush(Color.FromArgb(180, accent)))
+                        using (var pen2 = new Pen(Color.FromArgb(160, accent), 1.5f))
                         {
-                            g.FillEllipse(br, 25, 23, 3, 3);
-                            g.FillEllipse(br, 30, 23, 3, 3);
-                            g.FillEllipse(br, 35, 23, 3, 3);
+                            var path2 = new GraphicsPath();
+                            path2.AddArc(26, 24, 20, 13, 270, 180);
+                            path2.AddLine(36, 37, 41, 41);
+                            path2.AddLine(41, 41, 39, 36);
+                            path2.AddArc(26, 24, 20, 13, 90, 180);
+                            path2.CloseFigure();
+                            g.DrawPath(pen2, path2);
+                        }
+
+                        using (var br = new SolidBrush(accent))
+                        {
+                            g.FillEllipse(br, 21, 23, 2.5f, 2.5f);
+                            g.FillEllipse(br, 25, 23, 2.5f, 2.5f);
+                            g.FillEllipse(br, 29, 23, 2.5f, 2.5f);
                         }
                     }
                 }
@@ -399,7 +480,7 @@ namespace SERVIDORES_SOCKETS
             {
                 Text = desc, Font = new Font("Segoe UI", 9F),
                 ForeColor = _textMuted, AutoSize = false,
-                Size = new Size(270, 56), Location = new Point(28, 138),
+                Size = new Size(330, 42), Location = new Point(28, 132),
                 BackColor = Color.Transparent, Name = "lblDesc"
             };
 
