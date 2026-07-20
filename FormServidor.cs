@@ -270,7 +270,7 @@ namespace SERVIDORES_SOCKETS
             lstClients.Columns.Add("Hora",      90);
             lstClients.Columns.Add("Estado",    -2);
             lstClients.DrawColumnHeader += (_, e) => e.DrawDefault = true;
-            lstClients.DrawItem         += (_, e) => e.DrawBackground();
+            lstClients.DrawItem         += (_, e) => { };
             lstClients.DrawSubItem      += DrawSubItem;
             lstClients.Resize           += (_, _) =>
             { if (lstClients.Columns.Count > 4) lstClients.Columns[4].Width = -2; };
@@ -398,6 +398,7 @@ namespace SERVIDORES_SOCKETS
                 lstClients.Items.Add(it);
             }
             lstClients.EndUpdate();
+            lstClients.Invalidate();
         }
 
         void MostrarIPs()
