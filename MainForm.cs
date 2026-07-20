@@ -7,15 +7,30 @@ using System.Windows.Forms;
 namespace SERVIDORES_SOCKETS
 {
     /// <summary>
+    /// DoubleBufferedPanel — Panel personalizado con doble búfer por hardware
+    /// para evitar cualquier parpadeo de dibujo GDI+ en Windows Forms.
+    /// </summary>
+    public class DoubleBufferedPanel : Panel
+    {
+        public DoubleBufferedPanel()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | 
+                     ControlStyles.OptimizedDoubleBuffer | 
+                     ControlStyles.UserPaint, true);
+            UpdateStyles();
+        }
+    }
+
+    /// <summary>
     /// MainForm — Pantalla de bienvenida estilo SaaS Premium 2026.
     ///
-    /// IMPLEMENTACIÓN DE ANIMACIONES HOLOGRÁFICAS (GDI+ a 60 FPS):
-    /// • Anillos Orbitales en Contrarotación: El logo del Hero tiene anillos concéntricos
-    ///   vectoriales que giran en sentidos opuestos usando System.Windows.Forms.Timer.
-    /// • Resplandor Pulsante de Fondo (Glow): La luz holográfica de fondo pulsa de tamaño
-    ///   suavemente mediante modulación de onda senoidal (Math.Sin).
-    /// • Título y espaciado corregidos: El alto de renderizado del título se aumentó a 60px
-    ///   para evitar cualquier efecto de recorte o achatamiento de las letras.
+    /// SOLUCIÓN AL PARPADEO (ANTI-FLICKERING):
+    /// 1. El timer de animación ahora solo invalida localmente 'pnlHero.Invalidate()'.
+    ///    Ya no se invalida la ventana completa del Form ('this.Invalidate()'), eliminando el redibujado
+    ///    del fondo general, del layout y de las tarjetas hijas, que era el causante del parpadeo.
+    /// 2. Implementación de 'DoubleBufferedPanel': El panel del hero y los iconos circulares
+    ///    utilizan este componente especial para renderizar la rotación de anillos por hardware.
+    /// 3. Gradiente estático de alto impacto de fondo.
     /// </summary>
     public class MainForm : Form
     {
@@ -27,18 +42,16 @@ namespace SERVIDORES_SOCKETS
         private bool _isDarkMode = true;
         private System.Windows.Forms.Timer _animTimer = null!;
         private float _rotationAngle = 0f;
-        private double _pulseTime = 0;
 
         // Controles y paneles clave
         private Button btnTheme = null!;
-        private Panel pnlHero = null!;
+        private DoubleBufferedPanel pnlHero = null!;
 
         // Colores de tema dinámicos
         Color _bgTop, _bgBot, _cardNorm, _cardHov, _textPrim, _textMuted, _glowColor;
 
         public MainForm()
         {
-            // Doble buffer para evitar parpadeo en animaciones rápidas
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
             Text          = "SocketChat Pro";
             Size          = new Size(880, 600);
@@ -91,11 +104,9 @@ namespace SERVIDORES_SOCKETS
             _animTimer.Tick += (s, e) =>
             {
                 _rotationAngle = (_rotationAngle + 2.0f) % 360f;
-                _pulseTime += 0.035;
 
-                // Forzar el repintado ordenado
+                // Forzar el repintado ordenado local del logo (no de toda la ventana)
                 pnlHero.Invalidate();
-                this.Invalidate();
             };
             _animTimer.Start();
         }
@@ -111,13 +122,11 @@ namespace SERVIDORES_SOCKETS
                 g.FillRectangle(lb, ClientRectangle);
             }
 
-            // 2. Glow holográfico central pulsante
+            // 2. Glow holográfico central
             int cx = ClientRectangle.Width / 2;
             int cy = ClientRectangle.Height / 2 - 30;
-
-            double pulse = Math.Sin(_pulseTime) * 14.0; // oscila entre -14px y +14px
-            int rW = (int)(600 + pulse * 2);
-            int rH = (int)(400 + pulse);
+            int rW = 600;
+            int rH = 400;
 
             using (var path = new GraphicsPath())
             {
@@ -157,7 +166,7 @@ namespace SERVIDORES_SOCKETS
             Controls.Add(root);
 
             // ── Hero ──────────────────────────────────────────────────────────
-            pnlHero = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent, Name = "pnlHero" };
+            pnlHero = new DoubleBufferedPanel { Dock = DockStyle.Fill, BackColor = Color.Transparent, Name = "pnlHero" };
             pnlHero.Paint  += PintarHero;
             pnlHero.Resize += (_, _) => pnlHero.Invalidate();
             root.Controls.Add(pnlHero, 0, 0);
@@ -228,12 +237,10 @@ namespace SERVIDORES_SOCKETS
             // Anillos holográficos en rotación (direcciones opuestas)
             using (var pen = new Pen(Color.FromArgb(45, accent1), 3f))
             {
-                // El anillo exterior gira a la derecha
                 g.DrawArc(pen, cx - lr - 8, cy - lr - 54, lr * 2 + 16, lr * 2 + 16, _rotationAngle, 280f);
             }
             using (var pen = new Pen(Color.FromArgb(110, accent2), 1.5f))
             {
-                // El anillo interior gira a la izquierda (sentido opuesto) y más rápido
                 g.DrawArc(pen, cx - lr - 3, cy - lr - 49, lr * 2 + 6, lr * 2 + 6, -_rotationAngle * 1.5f, 210f);
             }
 
@@ -244,7 +251,7 @@ namespace SERVIDORES_SOCKETS
             using (var sfC   = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
                 g.DrawString("S", fLogo, Brushes.White, logoR, sfC);
 
-            // 2. Título (corrección de altura de 40px a 60px para evitar achatamiento de letras)
+            // 2. Título (corrección de altura de 40px a 60px para evitar el truncamiento)
             int y = logoR.Bottom + 12;
             using (var f = new Font("Segoe UI", 25F, FontStyle.Bold))
             using (var sf = new StringFormat { Alignment = StringAlignment.Center })
@@ -253,7 +260,7 @@ namespace SERVIDORES_SOCKETS
                 g.DrawString("SocketChat Pro", f, new SolidBrush(_textPrim), new RectangleF(0, y, p.Width, 60), sf);
             }
 
-            // 3. Subtítulo (desplazado a 56px para dar aire al título de 25F)
+            // 3. Subtítulo (desplazado para dejar respirar al título de 25F)
             y += 56;
             using (var f = new Font("Segoe UI Semibold", 9.75F, FontStyle.Bold))
             using (var sf = new StringFormat { Alignment = StringAlignment.Center })
@@ -333,8 +340,8 @@ namespace SERVIDORES_SOCKETS
                 }
             };
 
-            // Icono vectorial
-            var ico = new Panel { Size = new Size(62, 62), Location = new Point(28, 22), BackColor = Color.Transparent };
+            // Icono vectorial con doble búfer
+            var ico = new DoubleBufferedPanel { Size = new Size(62, 62), Location = new Point(28, 22), BackColor = Color.Transparent };
             ico.Paint += (_, e) =>
             {
                 var g = e.Graphics;
