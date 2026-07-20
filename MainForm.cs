@@ -121,6 +121,7 @@ namespace SERVIDORES_SOCKETS
 
         protected override void OnPaintBackground(PaintEventArgs e)
         {
+            if (ClientRectangle.Width <= 0 || ClientRectangle.Height <= 0) return;
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
@@ -247,6 +248,7 @@ namespace SERVIDORES_SOCKETS
             var pnlFoot = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent, Name = "pnlFoot" };
             pnlFoot.Paint += (_, e) =>
             {
+                if (pnlFoot.Width <= 80 || pnlFoot.Height <= 0) return;
                 Color sep = _isDarkMode ? Color.FromArgb(24, 36, 68) : Color.FromArgb(210, 218, 235);
                 e.Graphics.DrawLine(new Pen(sep, 1.2f), 40, 2, pnlFoot.Width - 40, 2);
             };
@@ -266,8 +268,9 @@ namespace SERVIDORES_SOCKETS
 
         private void PintarHero(object? s, PaintEventArgs e)
         {
-            var g  = e.Graphics;
             var p  = (Panel)s!;
+            if (p.Width <= 10 || p.Height <= 10) return;
+            var g  = e.Graphics;
             g.SmoothingMode     = SmoothingMode.AntiAlias;
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
@@ -341,6 +344,7 @@ namespace SERVIDORES_SOCKETS
 
             card.Paint += (_, e) =>
             {
+                if (card.Width <= 10 || card.Height <= 10) return;
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 bool hov = card.BackColor == _cardHov;
@@ -409,6 +413,7 @@ namespace SERVIDORES_SOCKETS
             var ico = new DoubleBufferedPanel { Size = new Size(62, 62), Location = new Point(28, 22), BackColor = Color.Transparent };
             ico.Paint += (_, e) =>
             {
+                if (ico.Width <= 10 || ico.Height <= 10 || ico.ClientRectangle.Width <= 0 || ico.ClientRectangle.Height <= 0) return;
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
