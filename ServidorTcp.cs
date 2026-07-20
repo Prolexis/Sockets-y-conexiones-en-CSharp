@@ -21,30 +21,32 @@ namespace SERVIDORES_SOCKETS
     {
         private TcpListener? _listener;
         private bool _running;
-        private readonly List<ClienteConectado> _clientes = new();
+
+        // Diccionario/lista de ManejadorCliente: una instancia POR cada cliente conectado.
+        private readonly List<ManejadorCliente> _clientes = new();
         private readonly object _clientesLock = new();
 
         // Eventos para comunicación desacoplada con la UI
         public event Action<string, LogLevel>? OnLog;
-        public event Action<ClienteConectado>? OnClientConnected;
-        public event Action<ClienteConectado>? OnClientDisconnected;
+        public event Action<ManejadorCliente>? OnClientConnected;
+        public event Action<ManejadorCliente>? OnClientDisconnected;
         public event Action<bool>? OnStateChanged;
 
         public bool IsRunning => _running;
 
         /// <summary>
-        /// Obtiene una copia de la lista de clientes conectados de forma thread-safe.
+        /// Obtiene una copia de la lista de ManejadorCliente de forma thread-safe.
         /// </summary>
-        public List<ClienteConectado> GetClientes()
+        public List<ManejadorCliente> GetClientes()
         {
             lock (_clientesLock)
             {
-                return new List<ClienteConectado>(_clientes);
+                return new List<ManejadorCliente>(_clientes);
             }
         }
 
         /// <summary>
-        /// Inicia la escucha del servidor en todas las interfaces de red de la máquina (0.0.0.0) en el puerto especificado.
+        /// Inicia la escucha del servidor en todas las interfaces de red (0.0.0.0) en el puerto indicado.
         /// </summary>
         public void Start(int port)
         {
@@ -85,8 +87,7 @@ namespace SERVIDORES_SOCKETS
         }
 
         /// <summary>
-        /// Bucle de aceptación asíncrono.
-        /// Corre en un hilo/tarea secundario para no bloquear la interfaz.
+        /// Bucle de aceptación asíncrono. Corre en tarea secundaria para no bloquear la UI.
         /// </summary>
         private async Task AceptarClientesAsync()
         {
@@ -94,80 +95,68 @@ namespace SERVIDORES_SOCKETS
             {
                 try
                 {
-                    // Esperar la conexión del cliente asíncronamente sin bloquear
                     TcpClient clientSocket = await _listener.AcceptTcpClientAsync();
-
-                    // Procesar el cliente en un hilo/tarea dedicada
+                    // Cada cliente tiene su propio hilo/tarea dedicada
                     _ = Task.Run(() => ManejarClienteHijoAsync(clientSocket));
                 }
                 catch (ObjectDisposedException)
                 {
-                    // Ocurre cuando el listener se detiene limpiamente
-                    break;
+                    break; // Listener detenido limpiamente
                 }
                 catch (Exception ex)
                 {
                     if (_running)
-                    {
                         OnLog?.Invoke($"Error al aceptar conexión de cliente: {ex.Message}", LogLevel.Error);
-                    }
                     break;
                 }
             }
         }
 
         /// <summary>
-        /// Maneja la comunicación con un socket hijo específico en su propio hilo.
+        /// Maneja la comunicación con un cliente específico en su propio hilo.
+        /// Crea una instancia de ManejadorCliente para encapsular ese socket.
         /// </summary>
         private async Task ManejarClienteHijoAsync(TcpClient clientSocket)
         {
             string clientEndPoint = "Desconocido";
-            ClienteConectado? cliente = null;
+            ManejadorCliente? cliente = null;
 
             try
             {
                 // Obtener endpoint remoto
                 if (clientSocket.Client.RemoteEndPoint is IPEndPoint ipEndPoint)
-                {
                     clientEndPoint = $"{ipEndPoint.Address}:{ipEndPoint.Port}";
-                }
 
                 using NetworkStream stream = clientSocket.GetStream();
                 using StreamReader reader = new StreamReader(stream, Encoding.UTF8);
                 using StreamWriter writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
 
-                // 1. Fase de Identificación
-                // Esperar el primer mensaje que debe ser IDENTIFY|usuario
+                // ── 1. Fase de Identificación ──────────────────────────────────────
                 string? infoLinea = await reader.ReadLineAsync();
                 if (string.IsNullOrEmpty(infoLinea) || !infoLinea.StartsWith("IDENTIFY|"))
                 {
-                    // Protocolo no respetado, cerrar
                     OnLog?.Invoke($"Conexión de {clientEndPoint} rechazada por falta de identificación.", LogLevel.Error);
                     clientSocket.Close();
                     return;
                 }
 
                 string usuario = infoLinea.Substring("IDENTIFY|".Length).Trim();
-                if (string.IsNullOrEmpty(usuario))
-                {
-                    usuario = "Anónimo";
-                }
+                if (string.IsNullOrEmpty(usuario)) usuario = "Anónimo";
 
-                // Obtener datos de IP y puerto
                 string ip = "127.0.0.1";
                 int puerto = 0;
                 if (clientSocket.Client.RemoteEndPoint is IPEndPoint ep)
                 {
-                    ip = ep.Address.ToString();
+                    ip     = ep.Address.ToString();
                     puerto = ep.Port;
                 }
 
-                // 2. Registro Thread-Safe
-                cliente = new ClienteConectado(clientSocket, ip, puerto, usuario, writer);
-                
+                // ── 2. Registro Thread-Safe ───────────────────────────────────────
+                // Se crea UNA instancia de ManejadorCliente que encapsula el socket y el writer.
+                cliente = new ManejadorCliente(clientSocket, ip, puerto, usuario, writer);
+
                 lock (_clientesLock)
                 {
-                    // Validar si el usuario ya está conectado
                     bool existe = _clientes.Exists(c => c.Usuario.Equals(usuario, StringComparison.OrdinalIgnoreCase));
                     if (existe)
                     {
@@ -176,7 +165,6 @@ namespace SERVIDORES_SOCKETS
                         OnLog?.Invoke($"Conexión rechazada: el usuario '{usuario}' ya está conectado desde {clientEndPoint}.", LogLevel.Error);
                         return;
                     }
-
                     _clientes.Add(cliente);
                 }
 
@@ -186,39 +174,28 @@ namespace SERVIDORES_SOCKETS
 
                 BroadcastListaUsuarios();
 
-                // 3. Bucle de Lectura
-                // Se queda escuchando mensajes del cliente (para detectar desconexión)
+                // ── 3. Bucle de Lectura ───────────────────────────────────────────
                 while (_running)
                 {
                     string? linea = await reader.ReadLineAsync();
 
-                    // Lectura que devuelve null (0 bytes a nivel socket) indica desconexión limpia
-                    if (linea == null)
-                    {
-                        break;
-                    }
+                    if (linea == null) break; // Desconexión limpia (0 bytes)
 
-                    // Aquí procesaremos futuros mensajes de chat / archivos en la Parte 2
-                    // Por ahora, solo respondemos a comandos de latido (ping/keepalive) si los hubiera
                     if (linea.Equals("PING", StringComparison.OrdinalIgnoreCase))
                     {
                         cliente?.EnviarLinea("PONG");
                     }
                     else if (linea.StartsWith("MSG|", StringComparison.OrdinalIgnoreCase))
                     {
-                        // Formato esperado: MSG|<destino>|<contenido>
-                        // destino = "ALL" (o vacío) → difusión a todo el chat; si no, mensaje privado.
+                        // Formato: MSG|<destino>|<contenido>
                         string[] partes = linea.Split(new[] { '|' }, 3);
                         if (partes.Length == 3)
                         {
-                            string destino = partes[1].Trim();
+                            string destino  = partes[1].Trim();
                             string contenido = partes[2];
-
                             OnLog?.Invoke($"[CHAT] {usuario} -> {(string.IsNullOrEmpty(destino) || destino.Equals("ALL", StringComparison.OrdinalIgnoreCase) ? "todos" : destino)}: {contenido}", LogLevel.Info);
                             EnrutarMensaje("MSG", destino, cliente!, contenido, incluirEmisorEnBroadcast: true);
                         }
-                        // 👉 Aquí, en el futuro, entrarán los prefijos FILE_INFO|, FILE_CHUNK|, FILE_END|
-                        //    para la transferencia de archivos, sin tocar el resto del bucle.
                     }
                     else if (linea.StartsWith("FILE_", StringComparison.OrdinalIgnoreCase))
                     {
@@ -228,21 +205,19 @@ namespace SERVIDORES_SOCKETS
                         string[] partesFile = linea.Split('|');
                         if (partesFile.Length < 3)
                         {
-                            OnLog?.Invoke($"Comando de archivo malformado de {usuario}, ignorado (no tumba la conexión).", LogLevel.Error);
+                            OnLog?.Invoke($"Comando de archivo malformado de {usuario}, ignorado.", LogLevel.Error);
                             continue;
                         }
 
                         string comandoFile = partesFile[0];
                         string destinoFile = partesFile[1].Trim();
-                        string restoFile = string.Join("|", partesFile, 2, partesFile.Length - 2);
+                        string restoFile   = string.Join("|", partesFile, 2, partesFile.Length - 2);
 
                         if (comandoFile.Equals("FILE_INFO", StringComparison.OrdinalIgnoreCase))
-                        {
                             OnLog?.Invoke($"[ARCHIVO] {usuario} envía archivo a {(string.IsNullOrEmpty(destinoFile) || destinoFile.Equals("ALL", StringComparison.OrdinalIgnoreCase) ? "todos" : destinoFile)}", LogLevel.Info);
-                        }
 
-                        // El servidor jamás toca el contenido del archivo, solo lo retransmite (pass-through).
-                        // No se incluye al emisor en broadcast: no tiene sentido que se reciba su propio archivo.
+                        // El servidor hace pass-through del archivo: nunca lee el contenido binario,
+                        // solo retransmite la línea de protocolo al destino correspondiente.
                         EnrutarMensaje(comandoFile, destinoFile, cliente!, restoFile, incluirEmisorEnBroadcast: false);
                     }
                     else if (linea.Equals("DISCONNECT", StringComparison.OrdinalIgnoreCase))
@@ -251,33 +226,22 @@ namespace SERVIDORES_SOCKETS
                     }
                 }
             }
-            catch (IOException)
-            {
-                // Generalmente se lanza cuando se corta la conexión abruptamente (ej. proceso cliente muere)
-            }
-            catch (SocketException)
-            {
-                // Excepción del socket por pérdida de red o cierre inesperado
-            }
+            catch (IOException)  { /* Conexión cortada abruptamente */ }
+            catch (SocketException) { /* Pérdida de red */ }
             catch (Exception ex)
             {
                 OnLog?.Invoke($"Excepción en el hilo del cliente {clientEndPoint}: {ex.Message}", LogLevel.Error);
             }
             finally
             {
-                // 4. Limpieza y Desconexión
+                // ── 4. Limpieza y Desconexión ─────────────────────────────────────
                 if (cliente != null)
                 {
-                    lock (_clientesLock)
-                    {
-                        _clientes.Remove(cliente);
-                    }
+                    lock (_clientesLock) { _clientes.Remove(cliente); }
                     cliente.Close();
                     OnLog?.Invoke($"Cliente [{cliente.Usuario}] ({clientEndPoint}) desconectado.", LogLevel.Info);
                     OnClientDisconnected?.Invoke(cliente);
-
                     BroadcastListaUsuarios();
-
                 }
                 else
                 {
@@ -295,25 +259,14 @@ namespace SERVIDORES_SOCKETS
 
             _running = false;
 
-            try
-            {
-                _listener?.Stop();
-            }
-            catch
-            {
-                // Ignorar errores al detener el listener
-            }
+            try { _listener?.Stop(); }
+            catch { /* ignorar */ }
 
-            // Cerrar todas las conexiones activas bajo lock
             lock (_clientesLock)
             {
                 foreach (var cliente in _clientes)
                 {
-                    try
-                    {
-                        cliente.EnviarLinea("SERVER_SHUTDOWN");
-                    }
-                    catch { }
+                    try { cliente.EnviarLinea("SERVER_SHUTDOWN"); } catch { }
                     cliente.Close();
                 }
                 _clientes.Clear();
@@ -324,61 +277,65 @@ namespace SERVIDORES_SOCKETS
         }
 
         /// <summary>
-        /// Envía un mensaje de chat a TODOS los clientes conectados (incluye eco al propio emisor,
-        /// así confirma que el mensaje salió).
+        /// Envía un mensaje de chat a TODOS los clientes conectados.
         /// </summary>
         public void EnviarATodos(string remitente, string contenido)
         {
-            List<ClienteConectado> copia;
-            lock (_clientesLock)
-            {
-                copia = new List<ClienteConectado>(_clientes);
-            }
+            List<ManejadorCliente> copia;
+            lock (_clientesLock) { copia = new List<ManejadorCliente>(_clientes); }
+
             string linea = $"MSG|{remitente}|{contenido}";
             foreach (var c in copia)
-            {
-                c.EnviarLinea(linea);
-            }
+                _ = c.EnviarMensajeAsync(linea);
         }
 
         /// <summary>
         /// Envía un mensaje de chat privado a un usuario específico.
-        /// Devuelve false si el usuario destino no existe (para que el servidor le avise al emisor).
+        /// Devuelve false si el usuario destino no existe.
         /// </summary>
         public bool EnviarPrivado(string destinatarioUsuario, string remitente, string contenido)
         {
-            ClienteConectado? destino;
+            ManejadorCliente? destino;
             lock (_clientesLock)
-            {
                 destino = _clientes.Find(c => c.Usuario.Equals(destinatarioUsuario, StringComparison.OrdinalIgnoreCase));
-            }
+
             if (destino == null) return false;
 
             string linea = $"MSG|{remitente}|{contenido}";
-            return destino.EnviarLinea(linea);
+            // El servidor llama EnviarMensajeAsync sobre la instancia ManejadorCliente destino,
+            // nunca manipula el socket directamente.
+            _ = destino.EnviarMensajeAsync(linea);
+            return true;
         }
 
         /// <summary>
-        /// Reenvía una línea de protocolo con formato "&lt;comando&gt;|&lt;emisor&gt;|&lt;resto&gt;"
-        /// al destino indicado (o a todos si destino es vacío/"ALL").
-        /// Usado tanto por el chat (MSG) como por la transferencia de archivos (FILE_*).
+        /// Reenvía una línea de protocolo "<comando>|<emisor>|<resto>" al destino indicado
+        /// (o a todos si destino es vacío/"ALL"). Usado tanto por MSG como por FILE_*.
+        ///
+        /// Para mensajes de chat (MSG): llama clienteDestino.EnviarMensajeAsync(lineaSaliente).
+        /// Para archivos (FILE_*): el servidor hace pass-through usando EnviarLinea ya que
+        /// la línea de protocolo ya viene formateada con base64 desde el cliente emisor.
         /// </summary>
-        private void EnrutarMensaje(string comando, string destino, ClienteConectado emisor, string resto, bool incluirEmisorEnBroadcast)
+        private void EnrutarMensaje(string comando, string destino, ManejadorCliente emisor, string resto, bool incluirEmisorEnBroadcast)
         {
             string lineaSaliente = $"{comando}|{emisor.Usuario}|{resto}";
 
-            List<ClienteConectado> copia;
-            lock (_clientesLock)
-            {
-                copia = new List<ClienteConectado>(_clientes);
-            }
+            List<ManejadorCliente> copia;
+            lock (_clientesLock) { copia = new List<ManejadorCliente>(_clientes); }
+
+            bool esMensaje = comando.Equals("MSG", StringComparison.OrdinalIgnoreCase);
 
             if (string.IsNullOrEmpty(destino) || destino.Equals("ALL", StringComparison.OrdinalIgnoreCase))
             {
                 foreach (var c in copia)
                 {
                     if (!incluirEmisorEnBroadcast && c == emisor) continue;
-                    c.EnviarLinea(lineaSaliente);
+
+                    if (esMensaje)
+                        // El servidor delega el envío al ManejadorCliente destino mediante su método async.
+                        _ = c.EnviarMensajeAsync(lineaSaliente);
+                    else
+                        c.EnviarLinea(lineaSaliente); // pass-through de línea FILE_ ya formateada
                 }
             }
             else
@@ -386,35 +343,32 @@ namespace SERVIDORES_SOCKETS
                 var dest = copia.Find(c => c.Usuario.Equals(destino, StringComparison.OrdinalIgnoreCase));
                 if (dest != null)
                 {
-                    dest.EnviarLinea(lineaSaliente);
+                    if (esMensaje)
+                        _ = dest.EnviarMensajeAsync(lineaSaliente);
+                    else
+                        dest.EnviarLinea(lineaSaliente);
                 }
                 else
                 {
-                    // Solo avisamos al emisor en el FILE_INFO / MSG inicial; los FILE_CHUNK/FILE_END
-                    // posteriores del mismo fileId simplemente se descartan sin spamear errores.
+                    // Solo avisamos al emisor en el FILE_INFO / MSG inicial.
                     emisor.EnviarLinea($"ERROR|Usuario '{destino}' no encontrado o desconectado.");
                 }
             }
         }
 
         /// <summary>
-        /// Difunde la lista actualizada de usuarios conectados a TODOS los clientes,
-        /// para que puedan poblar su selector de destinatario.
+        /// Difunde la lista actualizada de usuarios conectados a TODOS los clientes
+        /// para que puedan poblar su selector de destinatario (USERLIST).
         /// </summary>
         private void BroadcastListaUsuarios()
         {
-            List<ClienteConectado> copia;
-            lock (_clientesLock)
-            {
-                copia = new List<ClienteConectado>(_clientes);
-            }
-            string payload = string.Join(",", copia.Select(c => c.Usuario));
-            string linea = $"USERLIST|{payload}";
-            foreach (var c in copia)
-            {
-                c.EnviarLinea(linea);
-            }
-        }
+            List<ManejadorCliente> copia;
+            lock (_clientesLock) { copia = new List<ManejadorCliente>(_clientes); }
 
+            string payload = string.Join(",", copia.Select(c => c.Usuario));
+            string linea   = $"USERLIST|{payload}";
+            foreach (var c in copia)
+                c.EnviarLinea(linea);
+        }
     }
 }

@@ -103,8 +103,17 @@ namespace SERVIDORES_SOCKETS
                 // 1. Enviar identificación inmediatamente
                 await _writer.WriteLineAsync($"IDENTIFY|{usuario}");
 
-                // 2. Esperar confirmación del servidor
-                string? response = await _reader.ReadLineAsync();
+                // 2. Esperar confirmación del servidor con timeout de 5 segundos
+                var readTask = _reader.ReadLineAsync();
+                var readDelayTask = Task.Delay(5000);
+                var completedReadTask = await Task.WhenAny(readTask, readDelayTask);
+
+                if (completedReadTask == readDelayTask)
+                {
+                    throw new TimeoutException("Se agotó el tiempo de espera esperando la confirmación de identificación del servidor.");
+                }
+
+                string? response = await readTask;
                 if (response == null)
                 {
                     throw new IOException("El servidor cerró la conexión prematuramente.");
