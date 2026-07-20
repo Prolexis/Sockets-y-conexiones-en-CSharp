@@ -206,37 +206,37 @@ namespace SERVIDORES_SOCKETS
             txtPort = MkField("8080");
             txtUser = MkField("Cliente1");
 
-            // Botones de conexion en sub-TLP
-            var tlpBtns = new TableLayoutPanel
+            // Botones de conexion en FlowLayoutPanel horizontal
+            var pnlBtns = new FlowLayoutPanel
             {
-                Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
-                BackColor = Color.Transparent, Padding = new Padding(8, 0, 0, 0), Margin = Padding.Empty
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                BackColor = Color.Transparent,
+                Padding = new Padding(8, 0, 0, 0),
+                Margin = Padding.Empty
             };
-            tlpBtns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38));
-            tlpBtns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38));
-            tlpBtns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 24));
-            tlpBtns.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-            btnConn = MkBtn("Conectar",    Ac,  Color.White, new Size(1,1));
-            btnConn.Dock = DockStyle.Fill; btnConn.Name = "btnConn"; btnConn.Margin = new Padding(0,0,4,0);
+            btnConn = MkBtn("Conectar",    Ac,  Color.White, new Size(100, 26));
+            btnConn.Name = "btnConn"; btnConn.Margin = new Padding(0, 0, 4, 0);
             btnConn.Click += async (_, _) => await Conectar();
 
-            btnDisc = MkBtn("Desconectar", Err, Color.White, new Size(1,1));
-            btnDisc.Dock = DockStyle.Fill; btnDisc.Name = "btnDisc"; btnDisc.Enabled = false; btnDisc.Margin = new Padding(0,0,4,0);
+            btnDisc = MkBtn("Desconectar", Err, Color.White, new Size(100, 26));
+            btnDisc.Name = "btnDisc"; btnDisc.Enabled = false; btnDisc.Margin = new Padding(0, 0, 4, 0);
             btnDisc.Click += (_, _) => _client.Disconnect();
 
-            btnPing = MkBtn("Ping", Color.FromArgb(50, 70, 110), Color.White, new Size(1,1));
-            btnPing.Dock = DockStyle.Fill; btnPing.Name = "btnPing"; btnPing.Enabled = false;
+            btnPing = MkBtn("Ping", Color.FromArgb(50, 70, 110), Color.White, new Size(100, 26));
+            btnPing.Name = "btnPing"; btnPing.Enabled = false; btnPing.Margin = new Padding(0, 0, 0, 0);
             btnPing.Click += async (_, _) => await _client.EnviarPingAsync();
 
-            tlpBtns.Controls.Add(btnConn, 0, 0);
-            tlpBtns.Controls.Add(btnDisc, 1, 0);
-            tlpBtns.Controls.Add(btnPing, 2, 0);
+            pnlBtns.Controls.Add(btnConn);
+            pnlBtns.Controls.Add(btnDisc);
+            pnlBtns.Controls.Add(btnPing);
 
             tlp.Controls.Add(txtIp,    0, 1);
             tlp.Controls.Add(txtPort,  1, 1);
             tlp.Controls.Add(txtUser,  2, 1);
-            tlp.Controls.Add(tlpBtns,  3, 1);
+            tlp.Controls.Add(pnlBtns,  3, 1);
 
             gb.Controls.Add(tlp);
             return gb;
@@ -484,7 +484,9 @@ namespace SERVIDORES_SOCKETS
 
             Color bgBurbuja = system ? Color.FromArgb(50, 65, 105)
                             : propio  ? Ac
-                            : (_dark  ? Color.FromArgb(28, 42, 85) : Color.FromArgb(210, 220, 255));
+                            : (_dark  ? Color.FromArgb(28, 42, 85) : Color.FromArgb(222, 228, 240));
+
+            Color fgBurbuja = (system || propio || _dark) ? Color.White : Color.FromArgb(15, 23, 42);
 
             var bubble = new Panel { Size = new Size(bW, bH), BackColor = bgBurbuja };
 
@@ -494,7 +496,7 @@ namespace SERVIDORES_SOCKETS
 
             bubble.Controls.Add(new Label
             {
-                Text = fullText, Font = fnt, ForeColor = Color.White,
+                Text = fullText, Font = fnt, ForeColor = fgBurbuja,
                 BackColor = Color.Transparent,
                 Location = new Point(pH / 2, pV / 2),
                 Size = new Size(bW - pH, bH - pV),
