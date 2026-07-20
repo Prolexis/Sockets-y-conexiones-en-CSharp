@@ -102,7 +102,7 @@ namespace SERVIDORES_SOCKETS
                 BackColor = _bg, Padding = new Padding(12), Margin = Padding.Empty
             };
             root.RowStyles.Add(new RowStyle(SizeType.Absolute,  68));  // header
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 115));  // control
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 130));  // control (gbCtrl a 130px)
             root.RowStyles.Add(new RowStyle(SizeType.Percent,  100));  // main
             Controls.Add(root);
 
@@ -190,14 +190,14 @@ namespace SERVIDORES_SOCKETS
             {
                 Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 2,
                 BackColor = Color.Transparent,
-                Padding = new Padding(14, 26, 14, 8), Margin = Padding.Empty
+                Padding = new Padding(14, 20, 14, 6), Margin = Padding.Empty
             };
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));  // IP
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110)); // Puerto (label+field)
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112)); // Iniciar
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112)); // Detener
             tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));   // labels
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));   // inputs y botones fijados a 30px
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));   // inputs y botones fijados a 32px
 
             // Fila 0: etiquetas
             tlp.Controls.Add(MkLbl("IP de escucha (todas las interfaces):"), 0, 0);

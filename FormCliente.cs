@@ -103,7 +103,7 @@ namespace SERVIDORES_SOCKETS
                 BackColor = _bg, Padding = new Padding(12), Margin = Padding.Empty
             };
             root.RowStyles.Add(new RowStyle(SizeType.Absolute,  68));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 110));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 130)); // gbConn a 130px
             root.RowStyles.Add(new RowStyle(SizeType.Percent,  100));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute,  48));
             Controls.Add(root);
@@ -185,12 +185,12 @@ namespace SERVIDORES_SOCKETS
             };
             gb.Paint += GbPaint;
 
-            // 2 filas: labels (20px) | inputs+botones (30px)
+            // 2 filas: labels (20px) | inputs+botones (32px)
             var tlp = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill, ColumnCount = 6, RowCount = 2,
                 BackColor = Color.Transparent,
-                Padding = new Padding(12, 26, 12, 8), Margin = Padding.Empty
+                Padding = new Padding(12, 20, 12, 6), Margin = Padding.Empty
             };
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));  // IP del Servidor
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 85));  // Puerto
@@ -200,7 +200,7 @@ namespace SERVIDORES_SOCKETS
             tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));  // Ping
             
             tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));   // labels
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));   // inputs y botones fijados a 30px
+            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));   // inputs y botones fijados a 32px
 
             // Fila 0: etiquetas
             tlp.Controls.Add(MkLbl("IP del Servidor:"),    0, 0);
