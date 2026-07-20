@@ -7,13 +7,15 @@ using System.Windows.Forms;
 namespace SERVIDORES_SOCKETS
 {
     /// <summary>
-    /// MainForm — Pantalla de bienvenida con soporte completo de tema claro/oscuro.
+    /// MainForm — Pantalla de bienvenida estilo SaaS Premium 2026.
     ///
-    /// TÉCNICAS:
-    /// • Tema dinámico en cascada: ToggleTema() actualiza los colores en campos de instancia
-    ///   e invoca recursivamente ActualizarControlesTema() para adaptar fondos, textos y hovers.
-    /// • Botón de tema flotante: Anchor = Top | Right, posicionado fuera del TableLayoutPanel.
-    /// • Glow y Holograma GDI+: PaintBackground dibuja gradientes y resplandores adaptados al tema.
+    /// IMPLEMENTACIÓN DE ANIMACIONES HOLOGRÁFICAS (GDI+ a 60 FPS):
+    /// • Anillos Orbitales en Contrarotación: El logo del Hero tiene anillos concéntricos
+    ///   vectoriales que giran en sentidos opuestos usando System.Windows.Forms.Timer.
+    /// • Resplandor Pulsante de Fondo (Glow): La luz holográfica de fondo pulsa de tamaño
+    ///   suavemente mediante modulación de onda senoidal (Math.Sin).
+    /// • Título y espaciado corregidos: El alto de renderizado del título se aumentó a 60px
+    ///   para evitar cualquier efecto de recorte o achatamiento de las letras.
     /// </summary>
     public class MainForm : Form
     {
@@ -21,17 +23,22 @@ namespace SERVIDORES_SOCKETS
         private static extern int DwmSetWindowAttribute(IntPtr h, int a, ref int v, int s);
         private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
 
-        // Estado del tema
+        // Estado del tema y animación
         private bool _isDarkMode = true;
+        private System.Windows.Forms.Timer _animTimer = null!;
+        private float _rotationAngle = 0f;
+        private double _pulseTime = 0;
+
+        // Controles y paneles clave
+        private Button btnTheme = null!;
+        private Panel pnlHero = null!;
 
         // Colores de tema dinámicos
         Color _bgTop, _bgBot, _cardNorm, _cardHov, _textPrim, _textMuted, _glowColor;
 
-        // Controles globales
-        private Button btnTheme = null!;
-
         public MainForm()
         {
+            // Doble buffer para evitar parpadeo en animaciones rápidas
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
             Text          = "SocketChat Pro";
             Size          = new Size(880, 600);
@@ -41,12 +48,15 @@ namespace SERVIDORES_SOCKETS
 
             InitColors();
             BuildUI();
+            InitAnimation();
 
             Load += (_, _) =>
             {
                 int d = _isDarkMode ? 1 : 0;
                 try { DwmSetWindowAttribute(Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref d, 4); } catch { }
             };
+
+            FormClosed += (_, _) => _animTimer.Stop();
         }
 
         private void InitColors()
@@ -75,23 +85,43 @@ namespace SERVIDORES_SOCKETS
             ForeColor = _textPrim;
         }
 
+        private void InitAnimation()
+        {
+            _animTimer = new System.Windows.Forms.Timer { Interval = 16 }; // ~60 FPS para animación fluida
+            _animTimer.Tick += (s, e) =>
+            {
+                _rotationAngle = (_rotationAngle + 2.0f) % 360f;
+                _pulseTime += 0.035;
+
+                // Forzar el repintado ordenado
+                pnlHero.Invalidate();
+                this.Invalidate();
+            };
+            _animTimer.Start();
+        }
+
         protected override void OnPaintBackground(PaintEventArgs e)
         {
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
-            // 1. Gradiente base
+            // 1. Gradiente base de fondo
             using (var lb = new LinearGradientBrush(ClientRectangle, _bgTop, _bgBot, 45f))
             {
                 g.FillRectangle(lb, ClientRectangle);
             }
 
-            // 2. Glow holográfico central
+            // 2. Glow holográfico central pulsante
             int cx = ClientRectangle.Width / 2;
             int cy = ClientRectangle.Height / 2 - 30;
+
+            double pulse = Math.Sin(_pulseTime) * 14.0; // oscila entre -14px y +14px
+            int rW = (int)(600 + pulse * 2);
+            int rH = (int)(400 + pulse);
+
             using (var path = new GraphicsPath())
             {
-                path.AddEllipse(cx - 300, cy - 200, 600, 400);
+                path.AddEllipse(cx - rW / 2, cy - rH / 2, rW, rH);
                 using (var pgb = new PathGradientBrush(path))
                 {
                     pgb.CenterColor = _glowColor;
@@ -103,7 +133,7 @@ namespace SERVIDORES_SOCKETS
 
         private void BuildUI()
         {
-            // Botón de tema flotante (arriba a la derecha)
+            // Botón de tema flotante (esquina superior derecha)
             btnTheme = MkBtn(_isDarkMode ? "Modo Claro" : "Modo Oscuro", 
                 _isDarkMode ? Color.FromArgb(40, 55, 100) : Color.FromArgb(200, 215, 245), 
                 _textPrim, new Size(110, 32));
@@ -114,7 +144,7 @@ namespace SERVIDORES_SOCKETS
             Controls.Add(btnTheme);
             btnTheme.BringToFront();
 
-            // Layout principal
+            // Layout
             var root = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1,
@@ -127,7 +157,7 @@ namespace SERVIDORES_SOCKETS
             Controls.Add(root);
 
             // ── Hero ──────────────────────────────────────────────────────────
-            var pnlHero = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent, Name = "pnlHero" };
+            pnlHero = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent, Name = "pnlHero" };
             pnlHero.Paint  += PintarHero;
             pnlHero.Resize += (_, _) => pnlHero.Invalidate();
             root.Controls.Add(pnlHero, 0, 0);
@@ -195,11 +225,17 @@ namespace SERVIDORES_SOCKETS
             int lr = 34;
             var logoR = new Rectangle(cx - lr, cy - lr - 46, lr * 2, lr * 2);
 
-            // Anillos
-            using (var pen = new Pen(Color.FromArgb(40, accent1), 4f))
-                g.DrawEllipse(pen, cx - lr - 8, cy - lr - 54, lr * 2 + 16, lr * 2 + 16);
-            using (var pen = new Pen(Color.FromArgb(120, accent2), 1.5f))
-                g.DrawEllipse(pen, cx - lr - 3, cy - lr - 49, lr * 2 + 6, lr * 2 + 6);
+            // Anillos holográficos en rotación (direcciones opuestas)
+            using (var pen = new Pen(Color.FromArgb(45, accent1), 3f))
+            {
+                // El anillo exterior gira a la derecha
+                g.DrawArc(pen, cx - lr - 8, cy - lr - 54, lr * 2 + 16, lr * 2 + 16, _rotationAngle, 280f);
+            }
+            using (var pen = new Pen(Color.FromArgb(110, accent2), 1.5f))
+            {
+                // El anillo interior gira a la izquierda (sentido opuesto) y más rápido
+                g.DrawArc(pen, cx - lr - 3, cy - lr - 49, lr * 2 + 6, lr * 2 + 6, -_rotationAngle * 1.5f, 210f);
+            }
 
             using (var lgb = new LinearGradientBrush(logoR, accent1, accent2, 135f))
                 g.FillEllipse(lgb, logoR);
@@ -208,17 +244,17 @@ namespace SERVIDORES_SOCKETS
             using (var sfC   = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
                 g.DrawString("S", fLogo, Brushes.White, logoR, sfC);
 
-            // 2. Título
+            // 2. Título (corrección de altura de 40px a 60px para evitar achatamiento de letras)
             int y = logoR.Bottom + 12;
-            using (var f = new Font("Segoe UI", 24F, FontStyle.Bold))
+            using (var f = new Font("Segoe UI", 25F, FontStyle.Bold))
             using (var sf = new StringFormat { Alignment = StringAlignment.Center })
             {
-                if (_isDarkMode) g.DrawString("SocketChat Pro", f, new SolidBrush(Color.FromArgb(10, 10, 20)), new RectangleF(1, y + 1.5f, p.Width, 40), sf);
-                g.DrawString("SocketChat Pro", f, new SolidBrush(_textPrim), new RectangleF(0, y, p.Width, 40), sf);
+                if (_isDarkMode) g.DrawString("SocketChat Pro", f, new SolidBrush(Color.FromArgb(10, 10, 20)), new RectangleF(1, y + 1.5f, p.Width, 60), sf);
+                g.DrawString("SocketChat Pro", f, new SolidBrush(_textPrim), new RectangleF(0, y, p.Width, 60), sf);
             }
 
-            // 3. Subtítulo
-            y += 44;
+            // 3. Subtítulo (desplazado a 56px para dar aire al título de 25F)
+            y += 56;
             using (var f = new Font("Segoe UI Semibold", 9.75F, FontStyle.Bold))
             using (var sf = new StringFormat { Alignment = StringAlignment.Center })
             {
@@ -255,14 +291,14 @@ namespace SERVIDORES_SOCKETS
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 bool hov = card.BackColor == _cardHov;
 
-                // 1. Borde
+                // 1. Borde de la tarjeta
                 using (var pen = new Pen(Color.FromArgb(hov ? 220 : 45, accent), hov ? 2f : 1.2f))
                 using (var path = MkRound(new Rectangle(1, 1, card.Width - 2, card.Height - 2), 17))
                 {
                     g.DrawPath(pen, path);
                 }
 
-                // 2. Franja superior hover
+                // 2. Franja superior de acento en hover
                 if (hov)
                 {
                     var bar = new Rectangle(2, 2, card.Width - 4, 6);
@@ -410,7 +446,7 @@ namespace SERVIDORES_SOCKETS
                         }
                         else if (child is Panel iconPnl)
                         {
-                            iconPnl.Invalidate(); // Fuerza a que el icono GDI+ se redibuje con el fondo correcto del tema
+                            iconPnl.Invalidate();
                         }
                     }
                 }
