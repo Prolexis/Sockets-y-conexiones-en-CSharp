@@ -38,10 +38,17 @@ namespace SERVIDORES_SOCKETS
         private static extern int DwmSetWindowAttribute(IntPtr h, int a, ref int v, int s);
         private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
 
+        [DllImport("user32.dll", EntryPoint = "SendMessage", CharSet = CharSet.Auto)]
+        private static extern int WinMsg(IntPtr h, int msg, int w, int l);
+        private const int WM_SETREDRAW = 0x000B;
+
         // Estado del tema y animación
         private bool _isDarkMode = true;
         private System.Windows.Forms.Timer _animTimer = null!;
         private float _rotationAngle = 0f;
+
+        // Caché de controles para evitar búsquedas recursivas en cada cambio de tema (optimización de rendimiento)
+        private readonly System.Collections.Generic.List<Control> _controlesCache = new();
 
         // Controles y paneles clave
         private Button btnTheme = null!;
@@ -61,6 +68,7 @@ namespace SERVIDORES_SOCKETS
 
             InitColors();
             BuildUI();
+            CachearControles(this);
             InitAnimation();
 
             Load += (_, _) =>
@@ -501,8 +509,21 @@ namespace SERVIDORES_SOCKETS
             src.Click      += (_, _) => onClick();
         }
 
+        private void CachearControles(Control parent)
+        {
+            foreach (Control c in parent.Controls)
+            {
+                _controlesCache.Add(c);
+                if (c.Controls.Count > 0) CachearControles(c);
+            }
+        }
+
         private void ToggleTema()
         {
+            // Bloquear el redibujado de la ventana nativa de Windows durante la actualización para rendimiento instantáneo
+            WinMsg(Handle, WM_SETREDRAW, 0, 0);
+            this.SuspendLayout();
+
             _isDarkMode = !_isDarkMode;
             int d = _isDarkMode ? 1 : 0;
             try { DwmSetWindowAttribute(Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref d, 4); } catch { }
@@ -513,38 +534,33 @@ namespace SERVIDORES_SOCKETS
             btnTheme.BackColor = _isDarkMode ? Color.FromArgb(40, 55, 100) : Color.FromArgb(200, 215, 245);
             btnTheme.ForeColor = _textPrim;
 
-            ActualizarControlesTema(this);
-            Invalidate(true);
+            ActualizarControlesTema();
+
+            this.ResumeLayout(true);
+            WinMsg(Handle, WM_SETREDRAW, 1, 0); // Rehabilitar y repintar de un solo golpe
+            this.Refresh();
         }
 
-        private void ActualizarControlesTema(Control parent)
+        private void ActualizarControlesTema()
         {
-            foreach (Control c in parent.Controls)
+            foreach (Control c in _controlesCache)
             {
                 if (c is Panel p && p.Name.StartsWith("card_"))
                 {
                     p.BackColor = _cardNorm;
                     p.ForeColor = _textPrim;
-                    foreach (Control child in p.Controls)
-                    {
-                        if (child is Label lbl)
-                        {
-                            if (lbl.Name == "lblTit") lbl.ForeColor = _textPrim;
-                            else if (lbl.Name == "lblDesc") lbl.ForeColor = _textMuted;
-                        }
-                        else if (child is Panel iconPnl)
-                        {
-                            iconPnl.Invalidate();
-                        }
-                    }
+                    p.Invalidate();
                 }
-                else if (c is Label lbl && lbl.Name == "lblFoot")
+                else if (c is Label lbl)
                 {
-                    lbl.ForeColor = _isDarkMode ? Color.FromArgb(62, 78, 120) : Color.FromArgb(115, 128, 160);
+                    if (lbl.Name == "lblTit") lbl.ForeColor = _textPrim;
+                    else if (lbl.Name == "lblDesc") lbl.ForeColor = _textMuted;
+                    else if (lbl.Name == "lblFoot") lbl.ForeColor = _isDarkMode ? Color.FromArgb(62, 78, 120) : Color.FromArgb(115, 128, 160);
                 }
-
-                if (c.Controls.Count > 0)
-                    ActualizarControlesTema(c);
+                else if (c is DoubleBufferedPanel iconPnl)
+                {
+                    iconPnl.Invalidate();
+                }
             }
         }
 
