@@ -670,7 +670,10 @@ namespace SERVIDORES_SOCKETS
                     case TextBox tb: tb.BackColor = _inp; tb.ForeColor = _txt; break;
                     case ComboBox cb: cb.BackColor = _inp; cb.ForeColor = _txt; break;
                     case ListBox lb: lb.BackColor = _inp; lb.ForeColor = _txt; break;
-                    case Label lb when lb.Name is "lblStat" or "lblTitle": break;
+                    case Label lb when lb.Name == "lblTitle":
+                        lb.ForeColor = _txt; break;
+                    case Label lb when lb.Name == "lblStat":
+                        break;
                     case Label lb: lb.ForeColor = _mut; break;
                 }
                 if (c.Controls.Count > 0) TemaRec(c);

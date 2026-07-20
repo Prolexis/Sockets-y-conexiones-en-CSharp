@@ -522,7 +522,10 @@ namespace SERVIDORES_SOCKETS
                     case RichTextBox rt:
                         rt.BackColor = _dark ? Color.FromArgb(8, 10, 22) : Color.FromArgb(242, 245, 255);
                         rt.ForeColor = _dark ? Color.FromArgb(215, 215, 225) : Color.FromArgb(40, 50, 70); break;
-                    case Label lb when lb.Name is "lblStatus" or "lblTitle" or "lblIPs": break;
+                    case Label lb when lb.Name == "lblTitle":
+                        lb.ForeColor = _txt; break;
+                    case Label lb when lb.Name is "lblStatus" or "lblIPs":
+                        break;
                     case Label lb: lb.ForeColor = _mut; break;
                     case FlowLayoutPanel fp: fp.BackColor = Color.Transparent; break;
                 }
