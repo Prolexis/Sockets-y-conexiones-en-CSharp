@@ -88,7 +88,7 @@ namespace SERVIDORES_SOCKETS
             Size          = new Size(1120, 720);
             MinimumSize   = new Size(860, 580);
             StartPosition = FormStartPosition.CenterScreen;
-            Font          = new Font("Segoe UI", 9.75F);
+            Font          = new Font("Segoe UI", 10F);
             BackColor     = _bg;
             ForeColor     = _txt;
 
@@ -175,7 +175,7 @@ namespace SERVIDORES_SOCKETS
             var gb = new GroupBox
             {
                 Dock = DockStyle.Fill, Text = "CONTROL DEL SERVIDOR (TcpListener — IPAddress.Any)",
-                Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold),
+                Font = new Font("Segoe UI Semibold", 10.5F, FontStyle.Bold),
                 BackColor = _card, ForeColor = _txt,
                 Margin = new Padding(0, 6, 0, 4), Name = "gbCtrl"
             };
@@ -246,7 +246,7 @@ namespace SERVIDORES_SOCKETS
             var gbCli = new GroupBox
             {
                 Dock = DockStyle.Fill, Text = "CLIENTES CONECTADOS",
-                Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold),
+                Font = new Font("Segoe UI Semibold", 10.5F, FontStyle.Bold),
                 BackColor = _card, ForeColor = _txt,
                 Margin = new Padding(0, 0, 5, 0), Name = "gbCli"
             };
@@ -257,7 +257,7 @@ namespace SERVIDORES_SOCKETS
                 Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true,
                 HeaderStyle = ColumnHeaderStyle.Nonclickable,
                 BorderStyle = BorderStyle.None, OwnerDraw = true,
-                Font = new Font("Segoe UI", 9F),
+                Font = new Font("Segoe UI", 10F),
                 BackColor = _inp, ForeColor = _txt
             };
             lstClients.Columns.Add("Usuario",  150);
@@ -279,7 +279,7 @@ namespace SERVIDORES_SOCKETS
             var gbLog = new GroupBox
             {
                 Dock = DockStyle.Fill, Text = "LOG DE EVENTOS (tiempo real)",
-                Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold),
+                Font = new Font("Segoe UI Semibold", 10.5F, FontStyle.Bold),
                 BackColor = _card, ForeColor = _txt,
                 Margin = new Padding(5, 0, 0, 0), Name = "gbLog"
             };
@@ -291,7 +291,7 @@ namespace SERVIDORES_SOCKETS
                 BorderStyle = BorderStyle.None,
                 BackColor = Color.FromArgb(8, 10, 22),
                 ForeColor = Color.FromArgb(220, 220, 230),
-                Font = new Font("Consolas", 9F),
+                Font = new Font("Consolas", 10F),
                 ScrollBars = RichTextBoxScrollBars.Vertical,
                 Name = "rtxtLog"
             };
@@ -628,7 +628,7 @@ namespace SERVIDORES_SOCKETS
             {
                 Text = text, Size = size, FlatStyle = FlatStyle.Flat,
                 BackColor = back, ForeColor = fore, Cursor = Cursors.Hand,
-                Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold),
+                Font = new Font("Segoe UI Semibold", 9.75F, FontStyle.Bold),
                 Margin = new Padding(2, 0, 0, 0)
             };
             b.FlatAppearance.BorderSize = 0;  // SIN BORDE de Windows en modo Flat
@@ -639,7 +639,7 @@ namespace SERVIDORES_SOCKETS
         static Label MkLbl(string t) => new Label
         {
             Text = t, AutoSize = true, Dock = DockStyle.Fill,
-            Font = new Font("Segoe UI", 8.5F), TextAlign = ContentAlignment.BottomLeft
+            Font = new Font("Segoe UI Semibold", 9.5F, FontStyle.Bold), TextAlign = ContentAlignment.BottomLeft
         };
 
         static GraphicsPath MkRound(Rectangle r, int rad)
